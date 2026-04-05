@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#0A1E3D"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="RingCall"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
+<title>RingCall — Fight Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Source Sans 3','Noto Sans Thai','Noto Sans SC',sans-serif;background:#FAFAF8;color:#222;}
+h1,h2,h3,h4{font-family:'Source Serif 4',serif;color:#0A1E3D;}
+button{cursor:pointer;font-family:inherit;min-height:38px;}
+input,select,textarea{font-family:inherit;font-size:15px!important;color:#222;}
+::placeholder{color:#aaa;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:#ddd;border-radius:3px;}
+/* ── Mobile-first responsive ────────────────────── */
+@media(max-width:768px){
+  .gsplit{grid-template-columns:1fr!important;}
+  .modal-inner{margin:0!important;max-width:100%!important;border-radius:12px 12px 0 0!important;max-height:92vh!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important;top:auto!important;}
+  .modal-overlay{align-items:flex-end!important;}
+  .pgrid{grid-template-columns:1fr 1fr!important;}
+  .egrid{grid-template-columns:1fr!important;}
+  .egrid>div[style*="gridColumn"]{grid-column:auto!important;}
+  .main{padding:12px 12px 80px 12px!important;}
+  .top-nav{display:none!important;}
+  .bottom-nav{display:flex!important;}
+  .rgrid{grid-template-columns:1fr 1fr!important;}
+  .landing-btns{flex-direction:column!important;width:100%;}
+  .landing-btns button{width:100%!important;padding:14px!important;font-size:15px!important;}
+}
+@media(max-width:480px){
+  .rgrid{grid-template-columns:1fr!important;}
+  .pgrid{grid-template-columns:1fr 1fr!important;}
+}
+/* ── Touch & interaction ───────────────────────── */
+button{-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:opacity .15s;}
+button:active{opacity:.7;}
+input,select,textarea{-webkit-appearance:none;appearance:none;border-radius:8px!important;min-height:44px;font-size:16px!important;}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px!important;}
+/* ── Safe areas (notch, home indicator) ─────── */
+@supports(padding:env(safe-area-inset-bottom)){
+  .main{padding-bottom:calc(80px + env(safe-area-inset-bottom))!important;}
+  .bottom-nav{padding-bottom:env(safe-area-inset-bottom)!important;}
+}
+/* ── Bottom nav (hidden on desktop) ────────── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E5E2DC;z-index:200;justify-content:space-around;align-items:center;padding:6px 0 4px;box-shadow:0 -2px 10px rgba(0,0,0,.06);}
+.bottom-nav button{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:#8A8A8A;font-size:10px;font-weight:600;padding:4px 8px;min-height:44px;min-width:56px;letter-spacing:.3px;}
+.bottom-nav button.bnav-active{color:#0A1E3D;}
+.bottom-nav button svg{width:22px;height:22px;}
+/* ── Smooth scroll ──────────────────────────── */
+html{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}
+/* ── Prevent horizontal overflow ────────────── */
+body{overflow-x:hidden;}
+.main{overflow-x:hidden;}
+/* ── Modal body lock ────────────────────────── */
+body.modal-open{overflow:hidden!important;position:fixed;width:100%;}
+</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useCallback}=React;
+
+const C={navy:"#0A1E3D",gold:"#9B7B2E",goldBg:"rgba(155,123,46,.06)",bg:"#FAFAF8",card:"#FFFFFF",border:"#E5E2DC",borderL:"#F0EDE7",t1:"#1A1A1A",t2:"#4A4A4A",t3:"#8A8A8A",green:"#1D7A47",red:"#B83232"};
+
+// ═══ i18n ═════════════════════════════════════════════════════
+const LANGS={en:"English",th:"ไทย",zh:"中文"};
+const T={
+  // Nav & global
+  fighter:{en:"Fighter",th:"นักมวย",zh:"拳手"},
+  gym:{en:"Gym",th:"ค่ายมวย",zh:"拳馆"},
+  stadium:{en:"Stadium",th:"สนามมวย",zh:"拳场"},
+  fights:{en:"Fights",th:"รายการชก",zh:"比赛"},
+  myApps:{en:"My Applications",th:"ใบสมัครของฉัน",zh:"我的申请"},
+  myProfile:{en:"My Profile",th:"โปรไฟล์",zh:"我的资料"},
+  pending:{en:"Pending",th:"รอดำเนินการ",zh:"待审核"},
+  myFighters:{en:"My Fighters",th:"นักมวยของฉัน",zh:"我的拳手"},
+  submitToEvent:{en:"Submit to Event",th:"ส่งเข้ารายการ",zh:"提交至赛事"},
+  events:{en:"Events",th:"รายการแข่งขัน",zh:"赛事"},
+  createEvent:{en:"Create Event",th:"สร้างรายการ",zh:"创建赛事"},
+  selectRegion:{en:"Select Region",th:"เลือกภูมิภาค",zh:"选择地区"},
+  selectStadium:{en:"Select Stadium",th:"เลือกสนาม",zh:"选择拳场"},
+  selectRegionDesc:{en:"Choose a region to find stadiums and upcoming events.",th:"เลือกภูมิภาคเพื่อค้นหาสนามและรายการ",zh:"选择地区查看拳场和赛事"},
+  upcoming:{en:"upcoming event",th:"รายการที่จะมาถึง",zh:"即将举行的赛事"},
+  fightCards:{en:"fight cards",th:"คู่ชก",zh:"比赛场次"},
+  apply:{en:"Apply",th:"สมัคร",zh:"申请"},
+  confirm:{en:"Confirm",th:"ยืนยัน",zh:"确认"},
+  approve:{en:"Approve",th:"อนุมัติ",zh:"批准"},
+  reject:{en:"Reject",th:"ปฏิเสธ",zh:"拒绝"},
+  submitted:{en:"Submitted",th:"ส่งแล้ว",zh:"已提交"},
+  reviewing:{en:"Reviewing",th:"กำลังตรวจสอบ",zh:"审核中"},
+  onCard:{en:"On Card",th:"อยู่ในรายการ",zh:"已上赛卡"},
+  full:{en:"Full",th:"เต็ม",zh:"已满"},
+  back:{en:"Back",th:"กลับ",zh:"返回"},
+  send:{en:"Send",th:"ส่ง",zh:"发送"},
+  save:{en:"Save Profile",th:"บันทึกโปรไฟล์",zh:"保存资料"},
+  noApps:{en:"No applications yet. Browse fights to apply.",th:"ยังไม่มีใบสมัคร ค้นหารายการชกเพื่อสมัคร",zh:"暂无申请。浏览比赛进行申请。"},
+  noPending:{en:"No pending applications.",th:"ไม่มีใบสมัครที่รอดำเนินการ",zh:"没有待审核的申请。"},
+  noEvents:{en:"No upcoming events at this stadium.",th:"ไม่มีรายการที่สนามนี้",zh:"该拳场暂无赛事。"},
+  noEligible:{en:"No eligible fighters applied yet.",th:"ยังไม่มีนักมวยที่ผ่านเกณฑ์สมัคร",zh:"暂无符合条件的拳手申请。"},
+  attendance:{en:"Attendance",th:"การเข้าร่วม",zh:"出勤率"},
+  fighterProfile:{en:"Fighter Profile",th:"โปรไฟล์นักมวย",zh:"拳手资料"},
+  highlightReels:{en:"Highlight Reels",th:"คลิปไฮไลท์",zh:"精彩集锦"},
+  appliedTo:{en:"Applied To",th:"สมัครไปที่",zh:"已申请"},
+  message:{en:"Message",th:"ข้อความ",zh:"留言"},
+  switchStadium:{en:"Switch Stadium",th:"เปลี่ยนสนาม",zh:"切换拳场"},
+  stadiumLogin:{en:"Stadium Login",th:"เข้าสู่ระบบสนาม",zh:"拳场登录"},
+  stadiumLoginDesc:{en:"Select your region, then your stadium.",th:"เลือกภูมิภาคแล้วเลือกสนามของคุณ",zh:"选择地区，然后选择您的拳场"},
+  eligible:{en:"Eligible Fighters",th:"นักมวยที่ผ่านเกณฑ์",zh:"符合条件的拳手"},
+  within3lbs:{en:"within ±3 lbs",th:"ภายใน ±3 ปอนด์",zh:"±3磅以内"},
+  flagNoShow:{en:"Flag No-Show",th:"แจ้งไม่มาแข่ง",zh:"标记缺席"},
+  fightMgmt:{en:"FIGHT MANAGEMENT",th:"จัดการการแข่งขัน",zh:"赛事管理"},
+  landing1:{en:"Fighters apply. Gyms approve. Stadiums match.",th:"นักมวยสมัคร ค่ายอนุมัติ สนามจับคู่",zh:"拳手申请。拳馆批准。拳场匹配。"},
+  landing2:{en:"The fight card fills itself.",th:"รายการชกเต็มด้วยตัวเอง",zh:"赛卡自动填满。"},
+  imFighter:{en:"I'm a Fighter",th:"ฉันเป็นนักมวย",zh:"我是拳手"},
+  imGym:{en:"I'm a Gym",th:"ฉันเป็นค่ายมวย",zh:"我是拳馆"},
+  imStadium:{en:"I'm a Stadium",th:"ฉันเป็นสนามมวย",zh:"我是拳场"},
+  createEventTitle:{en:"Create New Event",th:"สร้างรายการใหม่",zh:"创建新赛事"},
+  eventName:{en:"Event Name",th:"ชื่อรายการ",zh:"赛事名称"},
+  promotion:{en:"Promotion",th:"โปรโมชั่น",zh:"推广方"},
+  eventType:{en:"Event Type",th:"ประเภทรายการ",zh:"赛事类型"},
+  date:{en:"Date",th:"วันที่",zh:"日期"},
+  numFightCards:{en:"Number of Fight Cards",th:"จำนวนคู่ชก",zh:"比赛场次数"},
+  preview:{en:"Fight Card Preview",th:"ตัวอย่างรายการชก",zh:"赛卡预览"},
+  create:{en:"Create Event",th:"สร้างรายการ",zh:"创建赛事"},
+  coMain:{en:"Co-Main Event",th:"คู่รอง",zh:"半主赛"},
+  mainEvent:{en:"Main Event",th:"คู่เอก",zh:"主赛"},
+  uploadHighlight:{en:"+ Upload Highlight Reel",th:"+ อัพโหลดคลิปไฮไลท์",zh:"+ 上传精彩集锦"},
+  uploadPhoto:{en:"Upload Photo",th:"อัพโหลดรูป",zh:"上传照片"},
+  submitApplication:{en:"Submit Application",th:"ส่งใบสมัคร",zh:"提交申请"},
+  applyToFight:{en:"Apply to Fight",th:"สมัครเข้าชก",zh:"申请参赛"},
+  messageOptional:{en:"Message (optional)",th:"ข้อความ (ไม่บังคับ)",zh:"留言（可选）"},
+  whyPickYou:{en:"Why should they pick you?",th:"ทำไมพวกเขาควรเลือกคุณ?",zh:"为什么他们应该选择你？"},
+  pendingApproval:{en:"Pending Approval",th:"รอการอนุมัติ",zh:"待批准"},
+  submitFighter:{en:"Submit Fighter",th:"ส่งนักมวย",zh:"提交拳手"},
+};
+
+const WC=["Flyweight (112)","Bantamweight (118)","Super Bantam (122)","Featherweight (126)","Super Feather (130)","Lightweight (135)","Welterweight (147)","Middleweight (160)"];
+const wcLbs={"Flyweight (112)":112,"Bantamweight (118)":118,"Super Bantam (122)":122,"Featherweight (126)":126,"Super Feather (130)":130,"Lightweight (135)":135,"Welterweight (147)":147,"Middleweight (160)":160};
+
+const REGIONS=[
+  {en:"Bangkok",th:"กรุงเทพ",zh:"曼谷"},
+  {en:"Samut Sakhon",th:"สมุทรสาคร",zh:"龙仔厝"},
+  {en:"Pathum Thani",th:"ปทุมธานี",zh:"巴吞他尼"},
+  {en:"Pattaya",th:"พัทยา",zh:"芭提雅"},
+  {en:"Phuket",th:"ภูเก็ต",zh:"普吉"},
+  {en:"Koh Samui",th:"เกาะสมุย",zh:"苏梅岛"},
+  {en:"Chiang Mai",th:"เชียงใหม่",zh:"清迈"},
+];
+
+const STADIUMS=[
+  {id:"s1",en:"Rajadamnern Stadium",th:"สนามมวยราชดำเนิน (Rajadamnern Stadium)",zh:"拉差丹能拳场 (Rajadamnern Stadium)",region:"Bangkok",tier:"Premier"},
+  {id:"s2",en:"Lumpinee Boxing Stadium",th:"สนามมวยลุมพินี (Lumpinee Boxing Stadium)",zh:"伦披尼拳场 (Lumpinee Boxing Stadium)",region:"Bangkok",tier:"Premier"},
+  {id:"s3",en:"Channel 7 Boxing Stadium",th:"สนามมวยช่อง 7 (Channel 7 Boxing Stadium)",zh:"7频道拳场 (Channel 7 Boxing Stadium)",region:"Bangkok",tier:"Major"},
+  {id:"s4",en:"Siam Boxing Stadium",th:"สนามมวยสยาม (Siam Boxing Stadium)",zh:"暹罗拳场 (Siam Boxing Stadium)",region:"Bangkok",tier:"Regional"},
+  {id:"s5",en:"Imperial World Lat Phrao Stadium",th:"สนามมวยอิมพีเรียลเวิลด์ลาดพร้าว (Imperial World Lat Phrao Stadium)",zh:"帝国世界拉抛拳场 (Imperial World Lat Phrao Stadium)",region:"Bangkok",tier:"Regional"},
+  {id:"s6",en:"Omnoi Stadium",th:"สนามมวยอ้อมน้อย (Omnoi Stadium)",zh:"翁内拳场 (Omnoi Stadium)",region:"Samut Sakhon",tier:"Major"},
+  {id:"s7",en:"Rangsit Boxing Stadium",th:"สนามมวยรังสิต (Rangsit Boxing Stadium)",zh:"兰实拳场 (Rangsit Boxing Stadium)",region:"Pathum Thani",tier:"Regional"},
+  {id:"s8",en:"Max Muay Thai Stadium",th:"สนามมวยแม็กซ์มวยไทย (Max Muay Thai Stadium)",zh:"Max泰拳场 (Max Muay Thai Stadium)",region:"Pattaya",tier:"Major"},
+  {id:"s9",en:"Bangla Boxing Stadium",th:"สนามมวยบางลา (Bangla Boxing Stadium)",zh:"邦拉拳场 (Bangla Boxing Stadium)",region:"Phuket",tier:"Regional"},
+  {id:"s10",en:"Patong Boxing Stadium",th:"สนามมวยป่าตอง (Patong Boxing Stadium)",zh:"巴东拳场 (Patong Boxing Stadium)",region:"Phuket",tier:"Regional"},
+  {id:"s11",en:"Phetch Buncha Samui Stadium",th:"สนามมวยเพชรบัญชาสมุย (Phetch Buncha Samui Stadium)",zh:"碧查文差苏梅拳场 (Phetch Buncha Samui Stadium)",region:"Koh Samui",tier:"Regional"},
+  {id:"s12",en:"Chiang Mai Boxing Stadium",th:"สนามมวยเชียงใหม่ (Chiang Mai Boxing Stadium)",zh:"清迈拳场 (Chiang Mai Boxing Stadium)",region:"Chiang Mai",tier:"Regional"},
+];
+
+const FACE_COLORS=["#E8B4B8","#D4A574","#C68642","#8D5524","#FFDBAC","#F1C27D","#E0AC69","#C68642","#A0785A","#8D5524","#D4A574","#FFDBAC","#F1C27D","#E0AC69","#C68642","#A0785A","#D4A574","#E8B4B8","#FFDBAC","#C68642","#8D5524","#F1C27D","#E0AC69","#D4A574","#A0785A"];
+const HAIR_COLORS=["#1a1a1a","#2C1B0E","#1a1a1a","#1a1a1a","#8B4513","#2C1B0E","#1a1a1a","#1a1a1a","#2C1B0E","#1a1a1a","#2C1B0E","#8B4513","#1a1a1a","#1a1a1a","#D4A017","#2C1B0E","#1a1a1a","#1a1a1a","#8B4513","#1a1a1a","#1a1a1a","#2C1B0E","#1a1a1a","#1a1a1a","#2C1B0E"];
+const HAIR_STYLES=["short","buzz","buzz","mohawk","short","buzz","short","short","buzz","mohawk","short","buzz","short","buzz","short","buzz","mohawk","short","short","buzz","short","buzz","mohawk","short","buzz"];
+
+const initFighters=[
+  {id:"f1",name:"Somchai Kaewsai",gym:"Sor.Thanikul",weight:"Super Feather (130)",exp:"Semi-Pro (6-20)",fights:14,wins:10,losses:4,kos:3,stance:"Southpaw",att:98,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:22,notes:"Strong clinch.",style:"Muay Khao",coach:"Kru Pradit",coachVerified:true,coachPhone:"+66 81 234 5678",reels:["Highlight vs Petdam"],applied:[],submittedBy:"fighter"},
+  {id:"f2",name:"Arthit Pongsakorn",gym:"Sitjaopho",weight:"Featherweight (126)",exp:"Semi-Pro (6-20)",fights:11,wins:8,losses:3,kos:4,stance:"Orthodox",att:95,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:20,notes:"Heavy left kick.",style:"Muay Mat",coach:"Kru Somkit",coachVerified:true,coachPhone:"+66 89 876 5432",reels:["Training Camp 2026"],applied:["e1-fc2"],submittedBy:"fighter"},
+  {id:"f3",name:"Nattapong Srisuk",gym:"Petchboonchu",weight:"Flyweight (112)",exp:"Amateur (0-5)",fights:5,wins:4,losses:1,kos:2,stance:"Orthodox",att:92,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:19,notes:"Aggressive pressure.",style:"Muay Bouk",coach:"Kru Boonchu",coachVerified:true,coachPhone:"+66 92 111 2233",reels:[],applied:["e2-fc5","e3-fc1"],submittedBy:"fighter"},
+  {id:"f4",name:"Wanchai Maneerat",gym:"Kem Muay Thai",weight:"Bantamweight (118)",exp:"Semi-Pro (6-20)",fights:18,wins:13,losses:5,kos:6,stance:"Switch",att:100,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:24,notes:"Knee specialist.",style:"Muay Khao",coach:"Kru Anuwat",coachVerified:true,coachPhone:"+66 85 444 3322",reels:["Knee KO Reel"],applied:["e1-fc4","e4-fc2"],submittedBy:"gym"},
+  {id:"f5",name:"Jake Morrison",gym:"Kombat Group",weight:"Bantamweight (118)",exp:"Amateur (0-5)",fights:4,wins:2,losses:2,kos:1,stance:"Orthodox",att:88,status:"pending",nat:"\u{1F1EC}\u{1F1E7}",age:26,notes:"6 months training.",style:"Muay Mat",coach:"Kru Dam",coachVerified:false,coachPhone:"+66 93 555 6677",reels:["First Fight Thailand"],applied:["e2-fc6"],submittedBy:"fighter"},
+  {id:"f6",name:"Prajak Tongsai",gym:"Kaewsamrit",weight:"Bantamweight (118)",exp:"Semi-Pro (6-20)",fights:16,wins:12,losses:4,kos:5,stance:"Orthodox",att:96,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:21,notes:"Technical fighter.",style:"Muay Femur",coach:"Kru Sakchai",coachVerified:true,coachPhone:"+66 81 999 8877",reels:["Raja Debut 2025"],applied:["e1-fc4","e5-fc2"],submittedBy:"gym"},
+  {id:"f7",name:"Danai Jantawong",gym:"FA Group",weight:"Lightweight (135)",exp:"Amateur (0-5)",fights:7,wins:4,losses:3,kos:1,stance:"Orthodox",att:72,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:23,notes:"1 late cancel.",style:"Muay Sok",coach:"Kru Phet",coachVerified:true,coachPhone:"+66 86 222 3344",reels:[],applied:["e3-fc5","e7-fc4"],submittedBy:"fighter"},
+  {id:"f8",name:"Marcus Chen",gym:"Evolve MMA SG",weight:"Super Bantam (122)",exp:"Amateur (0-5)",fights:3,wins:2,losses:1,kos:1,stance:"Orthodox",att:60,status:"approved",nat:"\u{1F1F8}\u{1F1EC}",age:28,notes:"2 no-shows.",style:"Muay Mat",coach:"Yodkaikaew",coachVerified:false,coachPhone:"+65 9123 4567",reels:["SG Open Finals"],applied:["e1-fc6"],submittedBy:"fighter"},
+  {id:"f9",name:"Kittisak Prasert",gym:"Petchrungruang",weight:"Super Feather (130)",exp:"Semi-Pro (6-20)",fights:12,wins:9,losses:3,kos:5,stance:"Orthodox",att:94,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:21,notes:"Fast hands.",style:"Muay Mat",coach:"Kru Nu",coachVerified:true,coachPhone:"+66 84 777 6655",reels:["Full Fight Omnoi"],applied:["e1-fc3","e5-fc5"],submittedBy:"fighter"},
+  {id:"f10",name:"Tanawat Boonsri",gym:"Sor.Thanikul",weight:"Lightweight (135)",exp:"Amateur (0-5)",fights:6,wins:3,losses:3,kos:2,stance:"Southpaw",att:85,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:20,notes:"Good range.",style:"Muay Tae",coach:"Kru Pradit",coachVerified:true,coachPhone:"+66 81 234 5678",reels:[],applied:["e3-fc5","e8-fc4"],submittedBy:"gym"},
+  {id:"f11",name:"Ryu Takahashi",gym:"Shinwa Gym",weight:"Featherweight (126)",exp:"Semi-Pro (6-20)",fights:9,wins:6,losses:3,kos:2,stance:"Orthodox",att:90,status:"approved",nat:"\u{1F1EF}\u{1F1F5}",age:25,notes:"Japanese champ.",style:"Muay Femur",coach:"Sensei Yamada",coachVerified:false,coachPhone:"+81 90 1234 5678",reels:["K-1 Highlight"],applied:["e1-fc2","e6-fc4"],submittedBy:"fighter"},
+  {id:"f12",name:"Samart Worawut",gym:"Sor.Thanikul",weight:"Bantamweight (118)",exp:"Professional (21-50)",fights:32,wins:25,losses:7,kos:12,stance:"Orthodox",att:99,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:27,notes:"Former Lumpinee champ.",style:"Muay Sok",coach:"Kru Pradit",coachVerified:true,coachPhone:"+66 81 234 5678",reels:["Lumpinee Title Fight"],applied:["e1-fc4","e4-fc2","e7-fc2"],submittedBy:"gym"},
+  {id:"f13",name:"Liam O'Brien",gym:"Kombat Group",weight:"Welterweight (147)",exp:"Amateur (0-5)",fights:3,wins:1,losses:2,kos:0,stance:"Orthodox",att:78,status:"pending",nat:"\u{1F1EE}\u{1F1EA}",age:29,notes:"Irish boxer to MT.",style:"Muay Mat",coach:"Kru Dam",coachVerified:false,coachPhone:"+66 93 555 6677",reels:[],applied:["e6-fc3"],submittedBy:"fighter"},
+  {id:"f14",name:"Phetsiam Krungsri",gym:"Kaewsamrit",weight:"Flyweight (112)",exp:"Semi-Pro (6-20)",fights:19,wins:14,losses:5,kos:7,stance:"Orthodox",att:97,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:20,notes:"Great round 1.",style:"Muay Bouk",coach:"Kru Sakchai",coachVerified:true,coachPhone:"+66 81 999 8877",reels:["R1 KO Compilation"],applied:["e1-fc1","e2-fc5","e3-fc1","e9-fc1"],submittedBy:"gym"},
+  {id:"f15",name:"Diego Santos",gym:"Evolve MMA SG",weight:"Lightweight (135)",exp:"Amateur (0-5)",fights:6,wins:4,losses:2,kos:3,stance:"Southpaw",att:82,status:"pending",nat:"\u{1F1E7}\u{1F1F7}",age:24,notes:"Capoeira background.",style:"Muay Tae",coach:"Yodkaikaew",coachVerified:false,coachPhone:"+65 9123 4567",reels:["Capoeira × MT"],applied:["e3-fc5","e10-fc4"],submittedBy:"fighter"},
+  {id:"f16",name:"Chalerm Sitchompu",gym:"Petchrungruang",weight:"Middleweight (160)",exp:"Professional (21-50)",fights:28,wins:20,losses:8,kos:11,stance:"Orthodox",att:96,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:26,notes:"Body kick specialist.",style:"Muay Tae",coach:"Kru Nu",coachVerified:true,coachPhone:"+66 84 777 6655",reels:["Body Kick KOs"],applied:["e6-fc5","e8-fc4"],submittedBy:"gym"},
+  {id:"f17",name:"Park Joon-ho",gym:"Shinwa Gym",weight:"Super Bantam (122)",exp:"Semi-Pro (6-20)",fights:10,wins:7,losses:3,kos:3,stance:"Switch",att:91,status:"approved",nat:"\u{1F1F0}\u{1F1F7}",age:23,notes:"Korean kickboxing champ.",style:"Muay Femur",coach:"Sensei Yamada",coachVerified:false,coachPhone:"+81 90 1234 5678",reels:["KR Kickboxing Finals"],applied:["e1-fc6","e11-fc3"],submittedBy:"fighter"},
+  {id:"f18",name:"Anon Petchsiam",gym:"Kem Muay Thai",weight:"Super Feather (130)",exp:"Semi-Pro (6-20)",fights:15,wins:11,losses:4,kos:4,stance:"Orthodox",att:95,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:22,notes:"Clinch master.",style:"Muay Khao",coach:"Kru Anuwat",coachVerified:true,coachPhone:"+66 85 444 3322",reels:["Clinch Masterclass"],applied:["e1-fc3","e5-fc5","e12-fc3"],submittedBy:"gym"},
+  {id:"f19",name:"Tom Williams",gym:"FA Group",weight:"Featherweight (126)",exp:"Amateur (0-5)",fights:5,wins:3,losses:2,kos:1,stance:"Orthodox",att:70,status:"pending",nat:"\u{1F1E6}\u{1F1FA}",age:27,notes:"1 no-show last year.",style:"Muay Mat",coach:"Kru Phet",coachVerified:true,coachPhone:"+66 86 222 3344",reels:[],applied:["e9-fc3"],submittedBy:"fighter"},
+  {id:"f20",name:"Supachai Tor.Silachai",gym:"Sitjaopho",weight:"Lightweight (135)",exp:"Professional (21-50)",fights:24,wins:18,losses:6,kos:8,stance:"Orthodox",att:93,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:25,notes:"Strong teep.",style:"Muay Femur",coach:"Kru Somkit",coachVerified:true,coachPhone:"+66 89 876 5432",reels:["Teep Highlight"],applied:["e1-fc5","e3-fc5","e10-fc4"],submittedBy:"fighter"},
+  {id:"f21",name:"Kaito Suzuki",gym:"Shinwa Gym",weight:"Bantamweight (118)",exp:"Amateur (0-5)",fights:4,wins:3,losses:1,kos:2,stance:"Southpaw",att:86,status:"pending",nat:"\u{1F1EF}\u{1F1F5}",age:22,notes:"Quick hands.",style:"Muay Mat",coach:"Sensei Yamada",coachVerified:false,coachPhone:"+81 90 1234 5678",reels:["Japan Amateur"],applied:["e4-fc2"],submittedBy:"fighter"},
+  {id:"f22",name:"Buakaw Sitsongpeenong",gym:"Petchboonchu",weight:"Welterweight (147)",exp:"Elite (50+)",fights:65,wins:52,losses:13,kos:28,stance:"Orthodox",att:100,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:30,notes:"Legend.",style:"Muay Mat",coach:"Kru Boonchu",coachVerified:true,coachPhone:"+66 92 111 2233",reels:["Career Highlights","K-1 World MAX"],applied:["e6-fc3"],submittedBy:"gym"},
+  {id:"f23",name:"Viktor Petrov",gym:"Kombat Group",weight:"Middleweight (160)",exp:"Semi-Pro (6-20)",fights:8,wins:5,losses:3,kos:4,stance:"Orthodox",att:84,status:"pending",nat:"\u{1F1F7}\u{1F1FA}",age:28,notes:"Sambo background.",style:"Muay Khao",coach:"Kru Dam",coachVerified:false,coachPhone:"+66 93 555 6677",reels:["Sambo × MT"],applied:["e6-fc5"],submittedBy:"fighter"},
+  {id:"f24",name:"Petchdam Gaiyanghadao",gym:"Kaewsamrit",weight:"Super Feather (130)",exp:"Professional (21-50)",fights:35,wins:28,losses:7,kos:15,stance:"Switch",att:98,status:"approved",nat:"\u{1F1F9}\u{1F1ED}",age:24,notes:"Spinning attacks.",style:"Muay Tae",coach:"Kru Sakchai",coachVerified:true,coachPhone:"+66 81 999 8877",reels:["Spinning Elbow KO"],applied:["e1-fc3","e5-fc5"],submittedBy:"gym"},
+  {id:"f25",name:"Ali Hassan",gym:"Evolve MMA SG",weight:"Featherweight (126)",exp:"Amateur (0-5)",fights:7,wins:5,losses:2,kos:2,stance:"Orthodox",att:79,status:"pending",nat:"\u{1F1F2}\u{1F1FE}",age:23,notes:"Silat base.",style:"Muay Bouk",coach:"Yodkaikaew",coachVerified:false,coachPhone:"+65 9123 4567",reels:["MY Open Finals"],applied:["e1-fc2","e10-fc3"],submittedBy:"fighter"},
+];
+
+const mkF=(id,ws)=>ws.map((w,i)=>{const n=i+1,tot=ws.length;return{id:`${id}-fc${n}`,n,w,fmt:n>=tot-1?"5R Traditional":"3R KO",label:`Fight Card ${n}`,sub:n===tot?"Main Event":n===tot-1?"Co-Main Event":"",conf:[]};});
+
+const initEvents=[
+  // Rajadamnern
+  {id:"e1",date:"12 April 2026",stadium:"Rajadamnern Stadium",promotion:"Rajadamnern World Series",name:"Rajadamnern Knockout — 12 April 2026",type:"Knockout",fights:mkF("e1",["Flyweight (112)","Featherweight (126)","Super Feather (130)","Bantamweight (118)","Lightweight (135)","Super Bantam (122)"])},
+  {id:"e2",date:"19 April 2026",stadium:"Rajadamnern Stadium",promotion:"Rajadamnern World Series",name:"Rajadamnern Super Fight — 19 April 2026",type:"Super Fight",fights:mkF("e2",["Super Feather (130)","Featherweight (126)","Bantamweight (118)","Lightweight (135)","Flyweight (112)","Bantamweight (118)","Super Feather (130)"])},
+  {id:"e3",date:"26 April 2026",stadium:"Rajadamnern Stadium",promotion:"Rajadamnern Championship",name:"Rajadamnern Championship Night — 26 April 2026",type:"Championship",fights:mkF("e3",["Flyweight (112)","Bantamweight (118)","Super Bantam (122)","Bantamweight (118)","Lightweight (135)","Lightweight (135)"])},
+  // Lumpinee
+  {id:"e4",date:"15 April 2026",stadium:"Lumpinee Boxing Stadium",promotion:"ONE Lumpinee",name:"Lumpinee Championship — 15 April 2026",type:"Championship",fights:mkF("e4",["Flyweight (112)","Bantamweight (118)","Lightweight (135)","Featherweight (126)","Super Feather (130)"])},
+  // Omnoi
+  {id:"e5",date:"17 April 2026",stadium:"Omnoi Stadium",promotion:"Omnoi Promotions",name:"Omnoi Friday Night Fights — 17 April 2026",type:"Traditional",fights:mkF("e5",["Flyweight (112)","Bantamweight (118)","Featherweight (126)","Lightweight (135)","Super Feather (130)"])},
+  // Max Muay Thai
+  {id:"e6",date:"20 April 2026",stadium:"Max Muay Thai Stadium",promotion:"Max Muay Thai",name:"Max Muay Thai International — 20 April 2026",type:"International",fights:mkF("e6",["Bantamweight (118)","Lightweight (135)","Welterweight (147)","Featherweight (126)","Middleweight (160)"])},
+  // Channel 7
+  {id:"e7",date:"22 April 2026",stadium:"Channel 7 Boxing Stadium",promotion:"Channel 7 Boxing",name:"Channel 7 Sunday Special — 22 April 2026",type:"TV Special",fights:mkF("e7",["Flyweight (112)","Bantamweight (118)","Super Feather (130)","Lightweight (135)"])},
+  // Rangsit
+  {id:"e8",date:"24 April 2026",stadium:"Rangsit Boxing Stadium",promotion:"Rangsit Promotions",name:"Rangsit Fight Night — 24 April 2026",type:"Regional",fights:mkF("e8",["Flyweight (112)","Bantamweight (118)","Featherweight (126)","Lightweight (135)"])},
+  // Bangla Phuket
+  {id:"e9",date:"18 April 2026",stadium:"Bangla Boxing Stadium",promotion:"Bangla Fight Night",name:"Bangla Fight Night — 18 April 2026",type:"International",fights:mkF("e9",["Flyweight (112)","Bantamweight (118)","Featherweight (126)","Lightweight (135)","Super Feather (130)"])},
+  // Patong Phuket
+  {id:"e10",date:"21 April 2026",stadium:"Patong Boxing Stadium",promotion:"Patong Championship",name:"Patong Championship — 21 April 2026",type:"Championship",fights:mkF("e10",["Bantamweight (118)","Featherweight (126)","Featherweight (126)","Lightweight (135)"])},
+  // Phetch Buncha Samui
+  {id:"e11",date:"23 April 2026",stadium:"Phetch Buncha Samui Stadium",promotion:"Samui Fight Series",name:"Samui Fight Series — 23 April 2026",type:"Regional",fights:mkF("e11",["Flyweight (112)","Bantamweight (118)","Super Bantam (122)","Featherweight (126)"])},
+  // Chiang Mai
+  {id:"e12",date:"25 April 2026",stadium:"Chiang Mai Boxing Stadium",promotion:"Chiang Mai Championship",name:"Chiang Mai Championship — 25 April 2026",type:"Regional",fights:mkF("e12",["Flyweight (112)","Bantamweight (118)","Super Feather (130)","Lightweight (135)"])},
+  // Siam
+  {id:"e13",date:"27 April 2026",stadium:"Siam Boxing Stadium",promotion:"Siam Fights",name:"Siam Stadium Fight Night — 27 April 2026",type:"Traditional",fights:mkF("e13",["Bantamweight (118)","Featherweight (126)","Lightweight (135)","Super Feather (130)"])},
+  // Imperial World
+  {id:"e14",date:"28 April 2026",stadium:"Imperial World Lat Phrao Stadium",promotion:"Imperial Boxing",name:"Imperial World Fight Night — 28 April 2026",type:"Regional",fights:mkF("e14",["Flyweight (112)","Bantamweight (118)","Featherweight (126)","Lightweight (135)"])},
+];
+
+const GYMS=[{name:"Sor.Thanikul",att:96,vip:true},{name:"Sitjaopho",att:93},{name:"Petchboonchu",att:90},{name:"Kem Muay Thai",att:98,vip:true},{name:"Kombat Group",att:82},{name:"Kaewsamrit",att:95,vip:true},{name:"FA Group",att:74},{name:"Evolve MMA SG",att:65},{name:"Petchrungruang",att:97,vip:true},{name:"Shinwa Gym",att:88}];
+
+// ═══ COMPONENTS ═══════════════════════════════════════════════
+const FaceAvatar=({idx,size=36})=>{const i=(idx||0)%25;return(<svg width={size} height={size} viewBox="0 0 40 40" style={{borderRadius:"50%",flexShrink:0}}><rect width="40" height="40" rx="20" fill={C.navy+"12"}/><circle cx="20" cy="22" r="11" fill={FACE_COLORS[i]}/>{HAIR_STYLES[i]==="short"&&<path d="M11,18 Q12,10 20,9 Q28,10 29,18 Q28,13 20,12 Q12,13 11,18Z" fill={HAIR_COLORS[i]}/>}{HAIR_STYLES[i]==="buzz"&&<path d="M11,19 Q12,10 20,9 Q28,10 29,19 Q28,14 20,13 Q12,14 11,19Z" fill={HAIR_COLORS[i]}/>}{HAIR_STYLES[i]==="mohawk"&&<><path d="M13,19 Q14,11 20,10 Q26,11 27,19 Q26,14 20,13 Q14,14 13,19Z" fill={HAIR_COLORS[i]}/><path d="M17,10 Q20,5 23,10 Q21,8 19,8Z" fill={HAIR_COLORS[i]}/></>}<circle cx="16" cy="21" r="1.2" fill="#333"/><circle cx="24" cy="21" r="1.2" fill="#333"/><path d="M17,26 Q20,28 23,26" stroke="#333" strokeWidth="0.8" fill="none" strokeLinecap="round"/></svg>);};
+
+const Logo=({h=32})=>(<svg height={h} width={Math.round(170*(h/40))} viewBox="0 0 170 40" style={{display:"block"}}><rect x="0" y="4" width="5" height="32" rx="1.5" fill={C.gold}/><text x="14" y="26" fontFamily="'Georgia','Source Serif 4',serif" fontSize="24" fontWeight="700" fill={C.navy}>Ring</text><text x="74" y="26" fontFamily="'Georgia','Source Serif 4',serif" fontSize="24" fontWeight="700" fill={C.gold}>Call</text><line x1="14" y1="32" x2="120" y2="32" stroke={C.border} strokeWidth="0.5"/><text x="14" y="40" fontFamily="sans-serif" fontSize="7" fill={C.t3} letterSpacing="4">FIGHT MANAGEMENT</text></svg>);
+
+function App(){
+  const[lang,setLang]=useState("en");
+  const t=k=>T[k]?.[lang]||T[k]?.en||k;
+  const sn=s=>{const sd=STADIUMS.find(x=>x.en===s);return sd?sd[lang]||sd.en:s;};
+  const rn=r=>{const rd=REGIONS.find(x=>x.en===r);return rd?rd[lang]||rd.en:r;};
+  const regionOf=sName=>{const sd=STADIUMS.find(x=>x.en===sName);return sd?sd.region:"";};
+
+  const[role,setRole]=useState("landing");
+  const[fighters,setFighters]=useState(initFighters);
+  const[events,setEvents]=useState(initEvents);
+  const[selEvent,setSelEvent]=useState(null);
+  const[selFight,setSelFight]=useState(null);
+  const[profile,setProfile]=useState(null);
+  const[notif,setNotif]=useState(null);
+  const[msgs,setMsgs]=useState({});
+  const[msgInput,setMsgInput]=useState("");
+  const[fighterTab,setFighterTab]=useState("browse");
+  const[gymTab,setGymTab]=useState("inbox");
+  const[applyModal,setApplyModal]=useState(null);
+  const[browseRegion,setBrowseRegion]=useState(null);
+  const[browseStadium,setBrowseStadium]=useState(null);
+  const[browseEvent,setBrowseEvent]=useState(null);
+  const[gymStadium,setGymStadium]=useState("");
+  const[gymPromo,setGymPromo]=useState("");
+  const[gymDate,setGymDate]=useState("");
+  const[gymFighter,setGymFighter]=useState("");
+  const[gymFightSlot,setGymFightSlot]=useState("");
+  const[stadiumLogin,setStadiumLogin]=useState(null);
+  const[stadiumRegion,setStadiumRegion]=useState(null);
+  const[stadiumTab,setStadiumTab]=useState("events");
+  const[myApps,setMyApps]=useState([]);
+  const[newEvt,setNewEvt]=useState({name:"",promotion:"",type:"Knockout",date:"",fightCount:6});
+  const[newFighter,setNewFighter]=useState({name:"",gym:"",weight:WC[1],exp:"Amateur (0-5)",fights:0,wins:0,losses:0,kos:0,stance:"Orthodox",nat:"",age:18,notes:"",coach:"",coachPhone:""});
+
+  const flash=useCallback((m,tp="info")=>{setNotif({m,t:tp});setTimeout(()=>setNotif(null),2200);},[]);
+  const resetNav=()=>{setSelEvent(null);setSelFight(null);setProfile(null);setMsgInput("");setBrowseRegion(null);setBrowseStadium(null);setBrowseEvent(null);};
+  const approveF=id=>{setFighters(p=>p.map(f=>f.id===id?{...f,status:"approved"}:f));flash(t("approve")+"!","ok");};
+  const confirmF=(fid,ftid)=>{setEvents(p=>p.map(ev=>({...ev,fights:ev.fights.map(ft=>ft.id===ftid?{...ft,conf:[...ft.conf,fid]}:ft)})));setFighters(p=>p.map(f=>f.id===fid?{...f,status:"matched"}:f));flash(t("confirm")+"!","ok");};
+  const noShow=id=>{setFighters(p=>p.map(f=>f.id===id?{...f,att:Math.max(0,f.att-15),notes:f.notes+" | NO-SHOW"}:f));flash(t("flagNoShow"),"warn");};
+  const sendMsg=fid=>{if(!msgInput.trim())return;setMsgs(p=>({...p,[fid]:[...(p[fid]||[]),{t:msgInput,time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}]}));setMsgInput("");};
+  const gymAtt=gn=>{const g=GYMS.find(x=>x.name===gn);return g?g.att:80;};
+  const gymVip=gn=>!!GYMS.find(x=>x.name===gn)?.vip;
+  const fightInfo=fid=>{for(const ev of events){const ft=ev.fights.find(f=>f.id===fid);if(ft)return{event:ev.name,date:ev.date,label:ft.label,sub:ft.sub,w:ft.w,n:ft.n,stadium:ev.stadium,promotion:ev.promotion};}return null;};
+  const fIdx=fid=>Math.max(0,initFighters.findIndex(f=>f.id===fid));
+  const inWR=(fw,sw)=>Math.abs((wcLbs[fw]||0)-(wcLbs[sw]||0))<=3;
+
+  const setProfileWithLock=f=>{setProfile(f);document.body.classList.add('modal-open');};
+  const setApplyWithLock=v=>{setApplyModal(v);if(v)document.body.classList.add('modal-open');};
+
+  const card={background:C.card,borderRadius:8,border:`1px solid ${C.border}`};
+  const hdr={padding:"16px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"};
+  const secL={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2.5,color:C.navy};
+  const btn=tp=>({padding:"10px 18px",borderRadius:6,border:"none",fontSize:13,fontWeight:600,minHeight:44,...(tp==="gold"?{background:C.gold,color:"#fff"}:tp==="green"?{background:C.green,color:"#fff"}:tp==="navy"?{background:C.navy,color:"#fff"}:tp==="red"?{background:C.red,color:"#fff"}:{background:"transparent",color:C.t2,border:`1px solid ${C.border}`})});
+  const tag=c=>({display:"inline-block",padding:"3px 8px",borderRadius:3,fontSize:9,fontWeight:700,color:c||C.navy,border:`1px solid ${(c||C.navy)}22`,background:(c||C.navy)+"08",letterSpacing:.5,textTransform:"uppercase"});
+  const inp={width:"100%",padding:"12px 14px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.t1,fontSize:16,outline:"none",minHeight:44};
+  const fl={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:C.t3,marginBottom:4,display:"block"};
+  const tabSt=a=>({padding:"10px 16px",borderRadius:4,border:"none",borderBottom:a?`2px solid ${C.gold}`:"2px solid transparent",background:"transparent",color:a?C.navy:C.t3,fontSize:12,fontWeight:700,letterSpacing:1,textTransform:"uppercase",minHeight:44});
+  const lnk={background:"none",border:"none",color:C.gold,fontSize:13,fontWeight:600,cursor:"pointer",padding:0};
+
+  const FCL=({ft})=>(<div><div style={{fontSize:15,fontWeight:700,color:C.t1}}>{ft.label}</div>{ft.sub&&<div style={{fontSize:12,fontWeight:600,color:C.gold}}>{ft.sub}</div>}<div style={{fontSize:13,color:C.t2}}>{ft.w} · ~{wcLbs[ft.w]} lbs</div><div style={{fontSize:12,color:C.t3}}>{ft.fmt}</div></div>);
+
+  const EvCard=({fid,hl})=>{const info=fightInfo(fid);if(!info)return null;return(<div style={{display:"flex",gap:12,alignItems:"center",padding:"10px 14px",background:hl?C.green+"08":C.bg,borderRadius:6,border:`1px solid ${hl?C.green+"20":C.borderL}`,marginBottom:5}}><div style={{minWidth:54}}><div style={{fontSize:14,fontWeight:700,color:C.navy}}>{info.label}</div>{info.sub&&<div style={{fontSize:9,fontWeight:600,color:C.gold}}>{info.sub}</div>}</div><div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:C.t1}}>{info.promotion}</div><div style={{fontSize:13,color:C.t2}}>{sn(info.stadium)}</div><div style={{fontSize:14,fontWeight:700,color:C.navy,marginTop:2}}>{info.date}</div></div></div>);};
+
+  // Language selector
+  const LangSel=()=>(<div style={{display:"flex",gap:2}}>
+    {Object.entries(LANGS).map(([k,v])=>(<button key={k} onClick={()=>setLang(k)} style={{padding:"4px 8px",borderRadius:3,border:`1px solid ${lang===k?C.gold:C.border}`,background:lang===k?C.gold+"12":"transparent",color:lang===k?C.gold:C.t3,fontSize:11,fontWeight:600,minHeight:0,letterSpacing:.5}}>{v}</button>))}
+  </div>);
+
+  // Region picker
+  const RegionPick=({onSel,title,desc})=>(<div><h3 style={{marginBottom:4}}>{title}</h3><p style={{fontSize:14,color:C.t2,marginBottom:16}}>{desc}</p><div className="rgrid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{REGIONS.map(r=>{const evC=events.filter(ev=>regionOf(ev.stadium)===r.en).length;return(<div key={r.en} onClick={()=>onSel(r.en)} style={{...card,padding:16,cursor:"pointer"}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{r[lang]||r.en}</div><div style={{fontSize:12,color:C.t3}}>{STADIUMS.filter(s=>s.region===r.en).length} {t("stadium").toLowerCase()}{STADIUMS.filter(s=>s.region===r.en).length>1?"s":""}</div>{evC>0&&<div style={{fontSize:12,fontWeight:600,color:C.green,marginTop:4}}>{evC} {t("upcoming")}{evC>1?"s":""}</div>}</div>);})}</div></div>);
+
+  const StadList=({region,onSel,onBack})=>(<div><button style={lnk} onClick={onBack}>← {t("back")}</button><h3 style={{marginTop:8,marginBottom:12}}>{rn(region)} — {t("stadium")}</h3>{STADIUMS.filter(s=>s.region===region).map(s=>{const evC=events.filter(ev=>ev.stadium===s.en).length;return(<div key={s.id} onClick={()=>onSel(s.en)} style={{...card,padding:16,marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{s[lang]||s.en}</div><div style={{fontSize:13,color:C.t3}}>{s.tier}</div></div>{evC>0?<span style={tag(C.green)}>{evC} {t("events").toLowerCase()}</span>:<span style={{fontSize:12,color:C.t3}}>{t("noEvents")}</span>}</div>);})}</div>);
+
+  // ─── LANDING ────────────────────────────────────────────────
+  if(role==="landing")return(<div style={{minHeight:"100vh",background:C.card,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:32}}>
+    <div style={{position:"absolute",top:16,right:16}}><LangSel/></div>
+    <div style={{marginBottom:24}}><Logo h={44}/></div>
+    <div style={{width:60,height:1,background:C.border,margin:"0 auto 20px"}}/>
+    <p style={{color:C.t2,fontSize:15,marginBottom:8,maxWidth:400,lineHeight:1.7}}>{t("landing1")}</p>
+    <p style={{color:C.t2,fontSize:15,marginBottom:36}}>{t("landing2")}</p>
+    <div className="landing-btns" style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+      <button style={{...btn("navy"),minHeight:48}} onClick={()=>setRole("fighter")}>{t("imFighter")}</button>
+      <button style={{...btn("gold"),minHeight:48}} onClick={()=>setRole("gym")}>{t("imGym")}</button>
+      <button style={{...btn(),borderColor:C.navy,color:C.navy,minHeight:48}} onClick={()=>setRole("stadium")}>{t("imStadium")}</button>
+    </div>
+  </div>);
+
+  // ─── NAV ────────────────────────────────────────────────────
+  // Bottom nav icons
+  const IconFighter=({c})=>(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
+  const IconGym=({c})=>(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 5v14M18 5v14M3 10h3M18 10h3M3 14h3M18 14h3M6 10h12M6 14h12"/></svg>);
+  const IconStadium=({c})=>(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>);
+  const IconLang=({c})=>(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>);
+
+  const[showLangMenu,setShowLangMenu]=useState(false);
+  const cycleLang=()=>{const ls=Object.keys(LANGS);const i=(ls.indexOf(lang)+1)%ls.length;setLang(ls[i]);};
+
+  const Nav=()=>(<>
+    {/* Desktop / tablet top nav */}
+    <nav className="top-nav" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px",background:C.card,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100}}>
+      <div style={{cursor:"pointer"}} onClick={()=>{setRole("landing");resetNav();setStadiumLogin(null);setStadiumRegion(null);}}><Logo h={28}/></div>
+      <div className="nav-r" style={{display:"flex",gap:2,alignItems:"center"}}>
+        <LangSel/>
+        <div style={{width:1,height:20,background:C.border,margin:"0 8px"}}/>
+        {[["fighter",t("fighter")],["gym",t("gym")],["stadium",t("stadium")]].map(([r,l])=>(<button key={r} onClick={()=>{setRole(r);resetNav();if(r!=="stadium"){setStadiumLogin(null);setStadiumRegion(null);}}} style={tabSt(role===r)}>{l}</button>))}
+      </div>
+    </nav>
+    {/* Mobile bottom nav */}
+    <div className="bottom-nav">
+      {[["fighter",t("fighter"),IconFighter],["gym",t("gym"),IconGym],["stadium",t("stadium"),IconStadium]].map(([r,l,Icon])=>(<button key={r} className={role===r?"bnav-active":""} onClick={()=>{setRole(r);resetNav();if(r!=="stadium"){setStadiumLogin(null);setStadiumRegion(null);}}}><Icon c={role===r?C.navy:C.t3}/><span>{l}</span></button>))}
+      <button onClick={cycleLang}><IconLang c={C.t3}/><span>{LANGS[lang]}</span></button>
+    </div>
+  </>);
+
+  const Toast=()=>notif?<div style={{position:"fixed",top:14,right:14,padding:"10px 20px",borderRadius:4,zIndex:9999,fontSize:13,fontWeight:600,background:notif.t==="ok"?C.green:notif.t==="warn"?C.gold:C.red,color:"#fff"}}>{notif.m}</div>:null;
+
+  // ─── PROFILE MODAL ──────────────────────────────────────────
+  const ProfileModal=()=>{if(!profile)return null;const f=profile,fi=fIdx(f.id);return(<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.25)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:12}} onClick={()=>{setProfile(null);setMsgInput("");document.body.classList.remove('modal-open');}}>
+      <div className="modal-inner" style={{...card,maxWidth:500,width:"100%",maxHeight:"88vh",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.stopPropagation()}>
+      <div style={hdr}><span style={secL}>{t("fighterProfile")}</span><button style={{background:"none",border:"none",color:C.t3,fontSize:22,cursor:"pointer",minHeight:44,minWidth:44,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setProfile(null);setMsgInput("");document.body.classList.remove('modal-open');}}>×</button></div>
+      <div style={{padding:20}}>
+        <div style={{display:"flex",gap:14,marginBottom:18}}><FaceAvatar idx={fi} size={56}/><div style={{flex:1}}><h3 style={{fontSize:20,marginBottom:2}}>{f.name}</h3><div style={{fontSize:14,color:C.t1}}>{f.nat} · {f.age}y · {f.stance} · {f.gym}</div><div style={{display:"flex",gap:4,marginTop:6}}><span style={tag(C.navy)}>{f.style}</span><span style={tag(C.t3)}>{f.weight}</span></div></div><div style={{textAlign:"right"}}><div style={{fontSize:26,fontWeight:700,color:f.att>=80?C.green:f.att>=60?C.gold:C.red}}>{f.att}%</div><div style={{fontSize:10,color:C.t3,textTransform:"uppercase"}}>{t("attendance")}</div></div></div>
+        <div className="pgrid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>{[{l:"Fights",v:f.fights},{l:"W",v:f.wins},{l:"L",v:f.losses},{l:"KO",v:f.kos}].map((x,i)=>(<div key={i} style={{background:C.bg,borderRadius:4,padding:8,textAlign:"center"}}><div style={{fontSize:18,fontWeight:700,color:C.navy}}>{x.v}</div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>{x.l}</div></div>))}</div>
+        {f.notes&&<div style={{fontSize:14,color:C.t1,padding:"12px 14px",background:C.bg,borderRadius:4,borderLeft:`3px solid ${C.gold}`,marginBottom:16}}>{f.notes}</div>}
+        <div style={{marginBottom:16}}><div style={{...fl,marginBottom:8}}>{t("highlightReels")}</div>{f.reels?.length>0?<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>{f.reels.map((r,i)=>(<div key={i} style={{borderRadius:6,overflow:"hidden",border:`1px solid ${C.border}`}}><div style={{height:80,background:`linear-gradient(135deg,${C.navy}15,${C.gold}10)`,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>▶</div></div><div style={{padding:"6px 8px",fontSize:12,color:C.t1}}>{r}</div></div>))}</div>:<div style={{padding:16,textAlign:"center",border:`1px dashed ${C.border}`,borderRadius:4,color:C.t3,fontSize:13}}>—</div>}<div style={{marginTop:8,padding:10,border:`1px dashed ${C.gold}40`,borderRadius:4,textAlign:"center",cursor:"pointer",color:C.gold,fontSize:13,fontWeight:600}}>{t("uploadHighlight")}</div></div>
+        {f.applied.length>0&&<div style={{marginBottom:16}}><div style={{...fl,marginBottom:8}}>{t("appliedTo")} ({f.applied.length})</div>{f.applied.map(aid=><EvCard key={aid} fid={aid}/>)}</div>}
+        <div style={{...fl,marginBottom:6}}>{t("message")}</div>
+        {(msgs[f.id]||[]).map((m,i)=>(<div key={i} style={{padding:"6px 10px",background:C.bg,borderRadius:4,marginBottom:3}}><span style={{fontSize:13,color:C.t1}}>{m.t}</span> <span style={{fontSize:10,color:C.t3}}>{m.time}</span></div>))}
+        <div style={{display:"flex",gap:6,marginTop:6}}><input style={{...inp,flex:1}} placeholder="..." value={msgInput} onChange={e=>setMsgInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendMsg(f.id);}}/><button style={btn("navy")} onClick={()=>sendMsg(f.id)}>{t("send")}</button></div>
+      </div>
+    </div>
+  </div>);};
+
+  // ═══ FIGHTER ════════════════════════════════════════════════
+  const FighterView=()=>{const fEvs=browseStadium?events.filter(ev=>ev.stadium===browseStadium):[];return(<div>
+    <div style={{display:"flex",gap:2,marginBottom:16,borderBottom:`1px solid ${C.border}`,paddingBottom:2}}>{[["browse",t("fights")],["status",t("myApps")],["profile",t("myProfile")]].map(([k,l])=>(<button key={k} onClick={()=>{setFighterTab(k);setBrowseRegion(null);setBrowseStadium(null);setBrowseEvent(null);}} style={tabSt(fighterTab===k)}>{l}</button>))}</div>
+
+    {fighterTab==="browse"&&(<div>
+      {!browseRegion?<RegionPick onSel={r=>setBrowseRegion(r)} title={t("selectRegion")} desc={t("selectRegionDesc")}/>
+      :!browseStadium?<StadList region={browseRegion} onSel={s=>setBrowseStadium(s)} onBack={()=>setBrowseRegion(null)}/>
+      :!browseEvent?(<div><button style={lnk} onClick={()=>setBrowseStadium(null)}>← {t("back")}</button><h3 style={{marginTop:8,marginBottom:4}}>{sn(browseStadium)}</h3><p style={{fontSize:13,color:C.t3,marginBottom:14}}>{STADIUMS.find(s=>s.en===browseStadium)?.tier}</p>
+        {fEvs.length===0?<p style={{color:C.t3,fontSize:14,padding:24,textAlign:"center"}}>{t("noEvents")}</p>:fEvs.map(ev=>(<div key={ev.id} onClick={()=>setBrowseEvent(ev)} style={{...card,padding:18,marginBottom:8,cursor:"pointer"}}><div style={{fontSize:17,fontWeight:700,color:C.navy}}>{ev.name}</div><div style={{fontSize:14,color:C.t2,marginTop:2}}>{ev.promotion}</div><div style={{fontSize:15,fontWeight:700,color:C.navy,marginTop:4}}>{ev.date}</div><div style={{display:"flex",gap:4,marginTop:8}}><span style={tag(C.gold)}>{ev.type}</span><span style={tag(C.t3)}>{ev.fights.length} {t("fightCards")}</span></div></div>))}
+      </div>)
+      :(<div><button style={lnk} onClick={()=>setBrowseEvent(null)}>← {t("back")}</button><h3 style={{marginTop:8,marginBottom:2}}>{browseEvent.name}</h3><p style={{fontSize:14,color:C.t2}}>{browseEvent.promotion} · {sn(browseEvent.stadium)}</p><p style={{fontSize:16,fontWeight:700,color:C.navy,marginBottom:16}}>{browseEvent.date}</p>
+        {browseEvent.fights.map(ft=>(<div key={ft.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",marginBottom:4,borderRadius:6,background:C.card,border:`1px solid ${C.border}`}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:30,height:30,borderRadius:"50%",background:ft.conf.length>=2?C.green:C.navy,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{ft.n}</div><FCL ft={ft}/></div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:700,color:ft.conf.length>=2?C.green:C.t3}}>{ft.conf.length}/2</span>{ft.conf.length<2?<button style={btn("gold")} onClick={()=>setApplyWithLock({ft,ev:browseEvent})}>{t("apply")}</button>:<span style={tag(C.green)}>{t("full")}</span>}</div></div>))}
+      </div>)}
+    </div>)}
+
+    {fighterTab==="status"&&(<div><h3 style={{marginBottom:12}}>{t("myApps")}</h3>{myApps.length===0?<div style={{...card,padding:32,textAlign:"center"}}><p style={{color:C.t2,fontSize:15}}>{t("noApps")}</p></div>:<div>{myApps.map(app=>{const info=fightInfo(app.fightId);if(!info)return null;return(<div key={app.fightId} style={{...card,padding:16,marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",gap:12,alignItems:"center"}}><div style={{width:34,height:34,borderRadius:"50%",background:C.navy,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff"}}>{info.n}</div><div><div style={{fontSize:16,fontWeight:700,color:C.t1}}>{info.label}{info.sub?` — ${info.sub}`:""}</div><div style={{fontSize:14,color:C.t1}}>{info.promotion}</div><div style={{fontSize:13,color:C.t2}}>{sn(info.stadium)}</div><div style={{fontSize:15,fontWeight:700,color:C.navy,marginTop:4}}>{info.date}</div></div></div><span style={tag(app.status==="oncard"?C.green:app.status==="reviewing"?C.gold:C.t3)}>{app.status==="oncard"?t("onCard"):app.status==="reviewing"?t("reviewing"):t("submitted")}</span></div>);})}</div>}</div>)}
+
+    {fighterTab==="profile"&&(<div><h3 style={{marginBottom:12}}>{t("myProfile")}</h3><div style={{...card,maxWidth:540,padding:20}}><div style={{display:"flex",justifyContent:"center",marginBottom:16}}><div style={{width:80,height:80,borderRadius:"50%",background:C.bg,border:`2px dashed ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.t3,fontSize:12,fontWeight:600,textAlign:"center"}}>{t("uploadPhoto")}</div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="egrid">{[["Name","name"],["Gym","gym"],["Nationality","nat"],["Age","age","num"],["Coach","coach"],["Phone","coachPhone"]].map(([l,k,tp])=>(<div key={k}><label style={fl}>{l}</label><input style={inp} type={tp==="num"?"number":"text"} value={newFighter[k]} onChange={e=>setNewFighter({...newFighter,[k]:tp==="num"?+e.target.value:e.target.value})}/></div>))}<div><label style={fl}>Weight</label><select style={{...inp,appearance:"auto"}} value={newFighter.weight} onChange={e=>setNewFighter({...newFighter,weight:e.target.value})}>{WC.map(w=><option key={w}>{w}</option>)}</select></div><div><label style={fl}>Experience</label><select style={{...inp,appearance:"auto"}} value={newFighter.exp} onChange={e=>setNewFighter({...newFighter,exp:e.target.value})}>{["Amateur (0-5)","Semi-Pro (6-20)","Professional (21-50)","Elite (50+)"].map(x=><option key={x}>{x}</option>)}</select></div><div style={{gridColumn:"1/3"}}><div style={{padding:16,border:`1px dashed ${C.gold}40`,borderRadius:4,textAlign:"center",cursor:"pointer",color:C.gold,fontSize:13,fontWeight:600}}>{t("uploadHighlight")}</div></div><div style={{gridColumn:"1/3"}}><button style={{...btn("navy"),width:"100%",padding:11}}>{t("save")}</button></div></div></div></div>)}
+
+    {applyModal&&(<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.25)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:12}} onClick={()=>{setApplyModal(null);document.body.classList.remove('modal-open');}}><div className="modal-inner" style={{...card,maxWidth:440,width:"100%"}} onClick={e=>e.stopPropagation()}><div style={hdr}><span style={secL}>{t("applyToFight")}</span><button style={{background:"none",border:"none",color:C.t3,fontSize:18,cursor:"pointer"}} onClick={()=>setApplyModal(null)}>×</button></div><div style={{padding:20}}><div style={{padding:16,background:C.bg,borderRadius:6,marginBottom:16,borderLeft:`3px solid ${C.gold}`}}><div style={{fontSize:17,fontWeight:700,color:C.navy}}>{applyModal.ft.label}{applyModal.ft.sub?` — ${applyModal.ft.sub}`:""}</div><div style={{fontSize:14,color:C.t1,marginTop:4}}>{applyModal.ev.promotion}</div><div style={{fontSize:14,color:C.t2}}>{sn(applyModal.ev.stadium)}</div><div style={{fontSize:16,fontWeight:700,color:C.navy,marginTop:6}}>{applyModal.ev.date}</div><div style={{fontSize:13,color:C.t3,marginTop:4}}>{applyModal.ft.w} · ~{wcLbs[applyModal.ft.w]} lbs · {applyModal.ft.fmt}</div></div><label style={fl}>{t("messageOptional")}</label><textarea style={{...inp,minHeight:60,resize:"vertical",marginBottom:16}} placeholder={t("whyPickYou")}/><button style={{...btn("gold"),width:"100%",padding:11}} onClick={()=>{setMyApps(p=>[...p,{fightId:applyModal.ft.id,status:"submitted"}]);setApplyModal(null);flash(t("submitted")+"!","ok");}}>{t("submitApplication")}</button></div></div></div>)}
+  </div>);};
+
+  // ═══ GYM ════════════════════════════════════════════════════
+  const GymView=()=>{const myGym="Sor.Thanikul",myF=fighters.filter(f=>f.gym===myGym),pend=fighters.filter(f=>f.status==="pending");const promos=gymStadium?[...new Set(events.filter(e=>e.stadium===gymStadium).map(e=>e.promotion))]:[];const dates=gymPromo?events.filter(e=>e.stadium===gymStadium&&e.promotion===gymPromo).map(e=>({date:e.date,id:e.id})):[];const selEv=gymDate?events.find(e=>e.id===gymDate):null;
+  return(<div><div style={{marginBottom:8}}><h3>{myGym} {gymVip(myGym)&&<span style={tag(C.gold)}>VIP</span>}</h3><p style={{fontSize:14,color:C.t1}}>{t("attendance")}: <span style={{fontWeight:700,color:gymAtt(myGym)>=80?C.green:C.gold}}>{gymAtt(myGym)}%</span></p></div>
+    <div style={{display:"flex",gap:2,marginBottom:16,borderBottom:`1px solid ${C.border}`,paddingBottom:2}}>{[["inbox",t("pending")+" ("+pend.length+")"],["fighters",t("myFighters")],["submit",t("submitToEvent")]].map(([k,l])=>(<button key={k} onClick={()=>setGymTab(k)} style={tabSt(gymTab===k)}>{l}</button>))}</div>
+
+    {gymTab==="inbox"&&(<div style={card}><div style={hdr}><span style={secL}>{t("pendingApproval")}</span></div><div style={{padding:16}}>{pend.length===0?<p style={{color:C.t3,fontSize:14,textAlign:"center",padding:20}}>{t("noPending")}</p>:pend.map(f=>{const fi=fIdx(f.id);return(<div key={f.id} style={{padding:14,marginBottom:8,borderRadius:6,background:C.bg,border:`1px solid ${C.borderL}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div style={{display:"flex",gap:12,cursor:"pointer",flex:1}} onClick={()=>setProfileWithLock(f)}><FaceAvatar idx={fi} size={48}/><div><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{f.name}</div><div style={{fontSize:14,color:C.t1}}>{f.style} · {f.stance} · {f.fights} fights</div><div style={{fontSize:15,fontWeight:700,color:C.t1,marginTop:2}}>{f.wins}W-{f.losses}L-{f.kos}KO</div><div style={{fontSize:13,color:C.t2}}>{t("attendance")}: <span style={{fontWeight:700,color:f.att>=80?C.green:C.gold}}>{f.att}%</span></div></div></div><div style={{display:"flex",gap:4}}><button style={btn("green")} onClick={()=>approveF(f.id)}>{t("approve")}</button><button style={btn()}>{t("reject")}</button></div></div>{f.applied.length>0&&<div style={{marginTop:10,marginLeft:60}}>{f.applied.map(aid=><EvCard key={aid} fid={aid}/>)}</div>}</div>);})}</div></div>)}
+
+    {gymTab==="fighters"&&(<div style={card}><div style={hdr}><span style={secL}>{t("myFighters")} ({myF.length})</span></div><div style={{padding:16}}>{myF.map(f=>{const fi=fIdx(f.id);return(<div key={f.id} style={{padding:12,marginBottom:6,borderRadius:6,background:C.bg,border:`1px solid ${C.borderL}`,cursor:"pointer"}} onClick={()=>setProfileWithLock(f)}><div style={{display:"flex",gap:12,alignItems:"center"}}><FaceAvatar idx={fi} size={42}/><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:15,fontWeight:700,color:C.navy}}>{f.name}</span>{f.status==="matched"&&<span style={tag(C.green)}>{t("onCard")}</span>}</div><div style={{fontSize:13,color:C.t1}}>{f.style} · {f.wins}W-{f.losses}L · {t("attendance")}: <span style={{fontWeight:700,color:f.att>=80?C.green:C.gold}}>{f.att}%</span></div></div></div>{f.applied.length>0&&<div style={{marginTop:8,marginLeft:54}}>{f.applied.map(aid=><EvCard key={aid} fid={aid}/>)}</div>}</div>);})}</div></div>)}
+
+    {gymTab==="submit"&&(<div style={{...card,maxWidth:580}}><div style={hdr}><span style={secL}>{t("submitToEvent")}</span></div><div style={{padding:20}}>
+      <label style={fl}>1. {t("selectStadium")}</label><select style={{...inp,appearance:"auto",marginBottom:14}} value={gymStadium} onChange={e=>{setGymStadium(e.target.value);setGymPromo("");setGymDate("");setGymFightSlot("");setGymFighter("");}}><option value="">...</option>{STADIUMS.map(s=><option key={s.id} value={s.en}>{s[lang]||s.en}</option>)}</select>
+      {gymStadium&&<><label style={fl}>2. {t("promotion")}</label><select style={{...inp,appearance:"auto",marginBottom:14}} value={gymPromo} onChange={e=>{setGymPromo(e.target.value);setGymDate("");setGymFightSlot("");setGymFighter("");}}><option value="">...</option>{promos.map(p=><option key={p}>{p}</option>)}</select></>}
+      {gymPromo&&<><label style={fl}>3. {t("date")}</label><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>{dates.map(d=>(<div key={d.id} onClick={()=>{setGymDate(d.id);setGymFightSlot("");setGymFighter("");}} style={{padding:14,borderRadius:6,cursor:"pointer",textAlign:"center",background:gymDate===d.id?C.navy:C.bg,color:gymDate===d.id?"#fff":C.t1,border:`1px solid ${gymDate===d.id?C.navy:C.border}`,fontWeight:700,fontSize:14}}>{d.date}</div>))}</div></>}
+      {selEv&&<><label style={fl}>4. Fight Card</label><select style={{...inp,appearance:"auto",marginBottom:14}} value={gymFightSlot} onChange={e=>{setGymFightSlot(e.target.value);setGymFighter("");}}><option value="">...</option>{selEv.fights.map(ft=><option key={ft.id} value={ft.id}>{ft.label}{ft.sub?" — "+ft.sub:""} ({ft.w})</option>)}</select></>}
+      {gymFightSlot&&<><label style={fl}>5. {t("fighter")}</label><select style={{...inp,appearance:"auto",marginBottom:14}} value={gymFighter} onChange={e=>setGymFighter(e.target.value)}><option value="">...</option>{myF.filter(f=>f.status==="approved").map(f=><option key={f.id} value={f.id}>{f.name} — {f.style} — {f.weight}</option>)}</select></>}
+      {gymFighter&&gymFightSlot&&<button style={{...btn("gold"),width:"100%",padding:11}} onClick={()=>{const f=fighters.find(x=>x.id===gymFighter);if(f){setFighters(p=>p.map(x=>x.id===f.id?{...x,applied:[...x.applied,gymFightSlot],submittedBy:"gym"}:x));flash(f.name+" "+t("submitted").toLowerCase(),"ok");setGymFighter("");setGymFightSlot("");}}}>{t("submitFighter")}</button>}
+    </div></div>)}
+  </div>);};
+
+  // ═══ STADIUM ════════════════════════════════════════════════
+  const StadiumView=()=>{
+    if(!stadiumLogin){if(!stadiumRegion)return(<div><h3 style={{marginBottom:4}}>{t("stadiumLogin")}</h3><p style={{fontSize:14,color:C.t2,marginBottom:16}}>{t("stadiumLoginDesc")}</p><div className="rgrid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{REGIONS.map(r=>(<div key={r.en} onClick={()=>setStadiumRegion(r.en)} style={{...card,padding:16,cursor:"pointer"}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{r[lang]||r.en}</div><div style={{fontSize:12,color:C.t3}}>{STADIUMS.filter(s=>s.region===r.en).length} {t("stadium").toLowerCase()}</div></div>))}</div></div>);
+    return(<div><button style={lnk} onClick={()=>setStadiumRegion(null)}>← {t("back")}</button><h3 style={{marginTop:8,marginBottom:12}}>{rn(stadiumRegion)}</h3>{STADIUMS.filter(s=>s.region===stadiumRegion).map(s=>(<div key={s.id} onClick={()=>setStadiumLogin(s.en)} style={{...card,padding:16,marginBottom:8,cursor:"pointer"}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{s[lang]||s.en}</div><div style={{fontSize:13,color:C.t3}}>{s.tier}</div></div>))}</div>);}
+
+    const myEv=events.filter(ev=>ev.stadium===stadiumLogin);
+    return(<div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:8}}><div><h3>{sn(stadiumLogin)}</h3><p style={{fontSize:13,color:C.t2}}><span style={{color:C.gold,cursor:"pointer",fontWeight:600}} onClick={()=>{setStadiumLogin(null);setStadiumRegion(null);setSelEvent(null);setSelFight(null);setStadiumTab("events");}}>{t("switchStadium")}</span></p></div></div>
+      <div style={{display:"flex",gap:2,marginBottom:16,borderBottom:`1px solid ${C.border}`,paddingBottom:2}}>{[["events",t("events")],["create",t("createEvent")]].map(([k,l])=>(<button key={k} onClick={()=>setStadiumTab(k)} style={tabSt(stadiumTab===k)}>{l}</button>))}</div>
+
+      {stadiumTab==="events"&&(<div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16,maxWidth:400}}>{[{l:t("events"),v:myEv.length},{l:t("fightCards"),v:myEv.reduce((a,e)=>a+e.fights.length,0)}].map((x,i)=>(<div key={i} style={card}><div style={{padding:14}}><div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:1.5}}>{x.l}</div><div style={{fontSize:24,fontWeight:700,color:C.navy,marginTop:4}}>{x.v}</div></div></div>))}</div>
+        <div className="gsplit" style={{display:"grid",gridTemplateColumns:selEvent?(selFight?"280px 1fr":"1fr"):"1fr",gap:14}}>
+          <div>{!selEvent?(<div style={card}><div style={hdr}><span style={secL}>{t("events")}</span></div><div style={{padding:12}}>{myEv.length===0?<p style={{color:C.t3,textAlign:"center",padding:20}}>{t("noEvents")}</p>:myEv.map(ev=>{const tc=ev.fights.reduce((a,ft)=>a+ft.conf.length,0),tot=ev.fights.length*2;return(<div key={ev.id} onClick={()=>setSelEvent(ev)} style={{padding:16,marginBottom:8,borderRadius:6,cursor:"pointer",background:C.bg,border:`1px solid ${C.borderL}`}}><div style={{fontSize:16,fontWeight:700,color:C.navy}}>{ev.name}</div><div style={{fontSize:13,color:C.t2}}>{ev.promotion}</div><div style={{fontSize:15,fontWeight:700,color:C.navy,marginTop:4}}>{ev.date}</div><div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={tag(C.gold)}>{ev.type}</span><span style={{fontSize:14,fontWeight:700,color:C.gold}}>{tc}/{tot}</span></div><div style={{display:"flex",gap:2,marginTop:8}}>{ev.fights.map(ft=>(<div key={ft.id} style={{flex:1,height:5,borderRadius:2,background:ft.conf.length>=2?C.green:ft.conf.length===1?C.gold:C.borderL}}/>))}</div></div>);})}</div></div>):(<div style={card}><div style={hdr}><div><span style={secL}>{selEvent.name}</span><div style={{fontSize:13,color:C.t2,marginTop:2}}>{selEvent.promotion} · {selEvent.date}</div></div><button style={btn()} onClick={()=>{setSelEvent(null);setSelFight(null);}}>← {t("back")}</button></div><div style={{padding:8}}>{selEvent.fights.map(ft=>{const wl=fighters.filter(f=>f.status==="approved"&&f.applied.includes(ft.id)&&inWR(f.weight,ft.w)).length;const isA=selFight&&selFight.id===ft.id;return(<div key={ft.id} onClick={()=>setSelFight(ft)} style={{padding:"12px 14px",marginBottom:3,borderRadius:4,cursor:"pointer",background:isA?C.navy+"08":C.bg,border:`1px solid ${isA?C.navy+"25":C.borderL}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:26,height:26,borderRadius:"50%",background:ft.conf.length>=2?C.green:C.navy,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff"}}>{ft.n}</div><FCL ft={ft}/></div><div style={{textAlign:"right"}}><span style={{fontSize:12,fontWeight:700,color:ft.conf.length>=2?C.green:C.gold}}>{ft.conf.length}/2</span><div style={{fontSize:10,color:C.t3}}>{wl} {t("eligible").toLowerCase()}</div></div></div></div>);})}</div></div>)}</div>
+          {selEvent&&selFight&&(<div style={card}><div style={hdr}><div><span style={secL}>{selFight.label}{selFight.sub?" — "+selFight.sub:""}</span><div style={{fontSize:13,color:C.t1,marginTop:2}}>{selFight.w} · ~{wcLbs[selFight.w]} lbs · {selFight.fmt}</div></div><span style={tag(selFight.conf.length>=2?C.green:C.gold)}>{selFight.conf.length}/2</span></div><div style={{padding:16}}>
+            {selFight.conf.length>0&&(<div style={{marginBottom:14}}><div style={{fontSize:10,color:C.green,textTransform:"uppercase",letterSpacing:2.5,fontWeight:700,marginBottom:6}}>{t("onCard")}</div>{selFight.conf.map(fid=>{const f=fighters.find(x=>x.id===fid);if(!f)return null;return(<div key={f.id} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 12px",background:C.green+"08",borderRadius:6,marginBottom:4,cursor:"pointer"}} onClick={()=>setProfileWithLock(f)}><FaceAvatar idx={fIdx(f.id)} size={34}/><div><span style={{fontSize:14,fontWeight:600,color:C.navy}}>{f.name}</span><span style={{fontSize:12,color:C.t2,marginLeft:6}}>{f.gym} · {f.weight}</span></div></div>);})}</div>)}
+            {(()=>{const wl=fighters.filter(f=>f.status==="approved"&&f.applied.includes(selFight.id)&&inWR(f.weight,selFight.w)).sort((a,b)=>{const av=gymVip(a.gym)?1:0,bv=gymVip(b.gym)?1:0;if(bv!==av)return bv-av;return b.att-a.att;});if(!wl.length)return<p style={{color:C.t3,fontSize:14,textAlign:"center",padding:20}}>{t("noEligible")}</p>;return(<div><div style={{fontSize:10,color:C.gold,textTransform:"uppercase",letterSpacing:2.5,fontWeight:700,marginBottom:8}}>{t("eligible")} ({wl.length}) — {t("within3lbs")}</div>{wl.map(f=>{const ga=gymAtt(f.gym),fi=fIdx(f.id);return(<div key={f.id} style={{padding:12,background:C.bg,borderRadius:6,marginBottom:6,border:`1px solid ${C.borderL}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div style={{display:"flex",gap:10,flex:1,cursor:"pointer"}} onClick={()=>setProfileWithLock(f)}><FaceAvatar idx={fi} size={46}/><div><div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:2}}><span style={{fontSize:15,fontWeight:700,color:C.navy}}>{f.name}</span><span style={{fontSize:12,color:C.t2}}>{f.nat}</span>{gymVip(f.gym)&&<span style={{fontSize:8,fontWeight:700,color:C.gold,background:C.goldBg,padding:"2px 5px",borderRadius:3}}>VIP</span>}{f.coachVerified&&<span style={{fontSize:8,fontWeight:700,color:C.green,background:C.green+"10",padding:"2px 5px",borderRadius:3}}>Coach ✓</span>}</div><div style={{fontSize:14,color:C.t1}}><strong>{f.wins}W-{f.losses}L-{f.kos}KO</strong> · {f.style} · {f.stance}</div><div style={{fontSize:13,color:C.t2}}>{f.gym} · {f.weight} · {t("attendance")}: <strong style={{color:f.att>=80?C.green:C.gold}}>{f.att}%</strong> · Gym: <strong style={{color:ga>=80?C.green:C.gold}}>{ga}%</strong></div><div style={{marginTop:6}}>{f.applied.map(aid=><EvCard key={aid} fid={aid} hl={aid===selFight.id}/>)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>{selFight.conf.length<2&&<button style={{...btn("gold"),padding:"6px 14px",fontSize:11}} onClick={e=>{e.stopPropagation();confirmF(f.id,selFight.id);}}>{t("confirm")}</button>}<button style={{...btn(),padding:"4px 10px",fontSize:10,color:C.red,borderColor:C.red+"33"}} onClick={e=>{e.stopPropagation();noShow(f.id);}}>{t("flagNoShow")}</button></div></div></div>);})}</div>);})()}
+          </div></div>)}
+        </div>
+      </div>)}
+
+      {stadiumTab==="create"&&(<div style={{...card,maxWidth:600}}><div style={hdr}><span style={secL}>{t("createEventTitle")}</span></div><div style={{padding:20}}>
+        <label style={fl}>{t("eventName")}</label><input style={{...inp,marginBottom:14}} placeholder="e.g. Rajadamnern Knockout" value={newEvt.name} onChange={e=>setNewEvt({...newEvt,name:e.target.value})}/>
+        <label style={fl}>{t("promotion")}</label><input style={{...inp,marginBottom:14}} placeholder="e.g. Rajadamnern World Series" value={newEvt.promotion} onChange={e=>setNewEvt({...newEvt,promotion:e.target.value})}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}><div><label style={fl}>{t("eventType")}</label><select style={{...inp,appearance:"auto"}} value={newEvt.type} onChange={e=>setNewEvt({...newEvt,type:e.target.value})}>{["Knockout","Super Fight","Championship","Traditional","International","TV Special","Regional"].map(tp=><option key={tp}>{tp}</option>)}</select></div><div><label style={fl}>{t("date")}</label><input type="date" style={inp} value={newEvt.date} onChange={e=>setNewEvt({...newEvt,date:e.target.value})}/></div></div>
+        <label style={fl}>{t("numFightCards")}</label><select style={{...inp,appearance:"auto",marginBottom:14}} value={newEvt.fightCount} onChange={e=>setNewEvt({...newEvt,fightCount:+e.target.value})}>{[3,4,5,6,7,8,9,10].map(n=><option key={n} value={n}>{n}</option>)}</select>
+        <div style={{...fl,marginBottom:8}}>{t("preview")}</div>
+        <div style={{background:C.bg,borderRadius:6,padding:12,marginBottom:16}}>{Array.from({length:newEvt.fightCount},(_,i)=>{const n=i+1,sub=n===newEvt.fightCount?t("mainEvent"):n===newEvt.fightCount-1?t("coMain"):"";return(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",marginBottom:2,borderRadius:4,background:C.card,border:`1px solid ${C.borderL}`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:24,height:24,borderRadius:"50%",background:C.navy,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff"}}>{n}</div><div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>Fight Card {n}</div>{sub&&<div style={{fontSize:11,fontWeight:600,color:C.gold}}>{sub}</div>}</div></div><select style={{padding:"4px 8px",borderRadius:3,border:`1px solid ${C.border}`,fontSize:12,background:C.bg}}><option value="">Weight class...</option>{WC.map(w=><option key={w}>{w}</option>)}</select></div>);})}</div>
+        <button style={{...btn("navy"),width:"100%",padding:11}} onClick={()=>{if(!newEvt.name||!newEvt.date||!newEvt.promotion){flash("Fill all fields","warn");return;}const d=new Date(newEvt.date);const ds=d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});const id="e"+(events.length+1);setEvents(p=>[...p,{id,date:ds,stadium:stadiumLogin,promotion:newEvt.promotion,name:`${newEvt.name} — ${ds}`,type:newEvt.type,fights:mkF(id,Array.from({length:newEvt.fightCount},()=>WC[1]))}]);flash(t("create")+"!","ok");setNewEvt({name:"",promotion:"",type:"Knockout",date:"",fightCount:6});setStadiumTab("events");}}>{t("create")}</button>
+      </div></div>)}
+    </div>);
+  };
+
+  return(<div style={{minHeight:"100vh",background:C.bg}}><Nav/><Toast/><ProfileModal/><div style={{padding:20,maxWidth:1200,margin:"0 auto"}} className="main">{role==="fighter"&&<FighterView/>}{role==="gym"&&<GymView/>}{role==="stadium"&&<StadiumView/>}</div></div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js');
+  });
+}
+</script>
+</body>
+</html>
