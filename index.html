@@ -564,14 +564,17 @@ function App(){
   };
 
   // ── Chat Panel Component ────────────────────────────────────
+  const MiniLogo=({s=24})=>(<svg height={s} width={s} viewBox="0 0 40 40" style={{display:"block"}}><rect x="2" y="4" width="5" height="32" rx="1.5" fill={C.gold}/><text x="12" y="28" fontFamily="'Georgia','Source Serif 4',serif" fontSize="26" fontWeight="700" fill="#fff">R</text></svg>);
+  const MiniLogoDark=({s=24})=>(<svg height={s} width={s} viewBox="0 0 40 40" style={{display:"block"}}><rect x="2" y="4" width="5" height="32" rx="1.5" fill={C.gold}/><text x="12" y="28" fontFamily="'Georgia','Source Serif 4',serif" fontSize="26" fontWeight="700" fill={C.navy}>R</text></svg>);
+
   const chatPanelJSX=(<>
     <button className="ai-fab" onClick={()=>setChatOpen(p=>!p)} title="RingCall AI Assistant">
-      {chatOpen?'✕':'🤖'}
+      {chatOpen?'✕':<MiniLogo s={28}/>}
     </button>
     {chatOpen&&(<div className="ai-chat-panel">
       <div className="ai-chat-header">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:22}}>🤖</span>
+          <MiniLogo s={28}/>
           <div><div style={{fontSize:15,fontWeight:700}}>RingCall AI</div><div style={{fontSize:11,opacity:.7}}>Muay Thai Assistant</div></div>
         </div>
         <div style={{display:'flex',gap:6}}>
@@ -581,7 +584,7 @@ function App(){
       </div>
       <div className="ai-chat-messages">
         {chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'30px 20px',color:C.t3}}>
-          <div style={{fontSize:40,marginBottom:12}}>🥊</div>
+          <div style={{marginBottom:12,display:'flex',justifyContent:'center'}}><MiniLogoDark s={48}/></div>
           <div style={{fontSize:16,fontWeight:700,color:C.navy,marginBottom:4}}>Ask me anything</div>
           <div style={{fontSize:13,lineHeight:1.5}}>Fighter analysis, matchmaking, event planning, Muay Thai rules — I know it all.</div>
         </div>)}
