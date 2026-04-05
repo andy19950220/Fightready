@@ -352,12 +352,14 @@ function App(){
   // Build context-aware system prompt
   const getSystemPrompt=()=>{
     const fighterSummary=fighters.slice(0,25).map(f=>`${f.name}: ${f.style}, ${f.stance}, ${f.wins}W-${f.losses}L-${f.kos}KO, ${f.weight}, Age ${f.age}, Att ${f.att}%, Gym ${f.gym}, ${f.exp}, ${f.status}`).join('\n');
+    const fightSummary=events.flatMap(e=>e.fights.filter(ft=>ft.conf.length<2).map(ft=>`[${ft.id}] ${ft.label}${ft.sub?' ('+ft.sub+')':''} — ${ft.w}, ${ft.fmt} — ${e.name} at ${e.stadium} (${e.date})`)).join('\n');
     const eventSummary=events.map(e=>`${e.name} (${e.date}) at ${e.stadium} — ${e.fights.length} cards, ${e.fights.reduce((a,ft)=>a+ft.conf.length,0)}/${e.fights.length*2} confirmed`).join('\n');
     let ctx=`You are RingCall AI, an expert Muay Thai fight management assistant. You help with matchmaking, fighter analysis, event planning, and anything related to Muay Thai stadiums in Thailand.\n\nCurrent user role: ${chatRole||'Not selected'}\nUser language: ${lang==='th'?'Thai':lang==='zh'?'Chinese':'English'}\nIMPORTANT: Always respond in ${lang==='th'?'Thai':lang==='zh'?'Chinese':'English'}.\n\n`;
+    if(chatRole==='fighter') ctx+=`When recommending fights, ALWAYS mention the fight ID in brackets like [e1-fc3] so the system can show clickable apply buttons. Only recommend fights from the AVAILABLE FIGHTS list below.\n\n`;
     if(role==='stadium'&&stadiumLogin) ctx+=`Stadium: ${stadiumLogin}\n`;
     if(selEvent) ctx+=`Viewing event: ${selEvent.name} (${selEvent.date})\n`;
     if(selFight) ctx+=`Viewing fight card: ${selFight.label} — ${selFight.w}\n`;
-    ctx+=`\n== FIGHTERS (${fighters.length} total) ==\n${fighterSummary}\n\n== EVENTS (${events.length} total) ==\n${eventSummary}\n\nBe concise, confident, and use fight terminology. Use emoji sparingly. Answer in the user's language if they write in Thai or Chinese.`;
+    ctx+=`\n== FIGHTERS (${fighters.length} total) ==\n${fighterSummary}\n\n== AVAILABLE FIGHTS (open slots) ==\n${fightSummary}\n\n== EVENTS (${events.length} total) ==\n${eventSummary}\n\nBe concise, confident, and use fight terminology. Use emoji sparingly. Answer in the user's language if they write in Thai or Chinese.`;
     return ctx;
   };
 
@@ -374,7 +376,11 @@ function App(){
       const sysPompt={role:'system',content:getSystemPrompt()};
       const history=[sysPompt,...chatMsgs,userMsg];
       const reply=await askAI(null,history);
-      setChatMsgs(prev=>[...prev,{role:'assistant',content:reply}]);
+      // Extract fight IDs from AI response and attach matching fights
+      const fightIdRegex=/\[(e\d+-fc\d+)\]/g;
+      const mentionedIds=[...reply.matchAll(fightIdRegex)].map(m=>m[1]);
+      const matchedFights=chatRole==='fighter'?getAvailableFights().filter(f=>mentionedIds.includes(f.ftId)):[];
+      setChatMsgs(prev=>[...prev,{role:'assistant',content:reply,fights:matchedFights.length>0?matchedFights:undefined}]);
     }catch(e){
       console.error('Chat error:',e);
       setChatMsgs(prev=>[...prev,{role:'assistant',content:'Error: '+e.message}]);
@@ -403,7 +409,9 @@ function App(){
     const ts=k=>S[k]?.[lang]||S[k]?.en||k;
     if(chatRole==='stadium'&&selFight)return[ts('stadium_fight'),ts('stadium_compare'),ts('stadium_main')];
     if(chatRole==='stadium')return[ts('stadium_need'),ts('stadium_order'),ts('stadium_attract')];
-    if(chatRole==='fighter')return[ts('fighter_weight'),ts('fighter_raja'),ts('fighter_foreign')];
+    if(chatRole==='fighter')return[
+      lang==='th'?'แนะนำรายการชกสำหรับรุ่นของฉัน':lang==='zh'?'推荐适合我级别的比赛':'Recommend fights for my weight class',
+      ts('fighter_raja'),ts('fighter_foreign')];
     if(chatRole==='gym')return[ts('gym_att'),ts('gym_submit'),ts('gym_look')];
     return[];
   };
@@ -637,23 +645,11 @@ function App(){
             ))}
           </div>
         </div>)}
-        {chatRole&&chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'20px 16px',color:C.t3}}>
+        {chatRole&&chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'24px 16px',color:C.t3}}>
           <div style={{marginBottom:8,display:'flex',justifyContent:'center'}}><MiniLogoDark s={40}/></div>
           {chatRole==='fighter'&&(<div>
-            <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'รายการชกว่าง':lang==='zh'?'可申请的比赛':'Available Fights'}</div>
-            <div style={{fontSize:12,color:C.t3,marginBottom:12}}>{lang==='th'?'คลิกเพื่อสมัคร หรือพิมพ์ถามได้':lang==='zh'?'点击申请或输入提问':'Click to apply, or type a question'}</div>
-            <div style={{maxHeight:280,overflowY:'auto',textAlign:'left'}}>
-              {getAvailableFights().map(f=>{
-                const applied=myApps.some(a=>a.fightId===f.ftId);
-                return(<div key={f.ftId} style={{padding:'10px 12px',marginBottom:6,borderRadius:8,border:`1px solid ${applied?C.green+'60':C.border}`,background:applied?C.green+'08':C.card,cursor:applied?'default':'pointer'}} onClick={()=>!applied&&applyFromChat(f.ftId)}>
-                  <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{f.label}</div>
-                  <div style={{fontSize:12,color:C.t2}}>{f.weight} · {f.fmt}</div>
-                  <div style={{fontSize:12,color:C.t2}}>{sn(f.stadium)} — {f.date}</div>
-                  <div style={{fontSize:11,color:C.t3}}>{f.promotion}</div>
-                  {applied&&<div style={{fontSize:11,color:C.green,fontWeight:700,marginTop:4}}>✓ {lang==='th'?'สมัครแล้ว':lang==='zh'?'已申请':'Applied'}</div>}
-                </div>);
-              })}
-            </div>
+            <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'ฉันช่วยหารายการชกให้คุณได้':lang==='zh'?'我可以帮你找比赛':'I can help you find fights'}</div>
+            <div style={{fontSize:12,color:C.t3}}>{lang==='th'?'บอกรุ่นน้ำหนัก สไตล์ หรือถามอะไรก็ได้':lang==='zh'?'告诉我你的级别、风格，或提问':'Tell me your weight, style, or ask anything'}</div>
           </div>)}
           {chatRole==='gym'&&(<div>
             <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'ถามเกี่ยวกับนักมวยของคุณ':lang==='zh'?'询问关于你的拳手':'Ask about your fighters'}</div>
@@ -664,7 +660,17 @@ function App(){
             <div style={{fontSize:12,color:C.t3}}>{lang==='th'?'ฉันช่วยจับคู่นักมวย วิเคราะห์ และจัดรายการชกได้':lang==='zh'?'我可以帮助配对拳手、分析和安排比赛':'I can help with matchmaking, analysis, and fight card planning'}</div>
           </div>)}
         </div>)}
-        {chatMsgs.map((m,i)=>(<div key={i} className={`ai-msg ${m.role==='user'?'user':'ai'}`}>{m.content}</div>))}
+        {chatMsgs.map((m,i)=>(<div key={i}><div className={`ai-msg ${m.role==='user'?'user':'ai'}`}>{m.content}</div>
+          {m.fights&&m.fights.length>0&&(<div style={{padding:'4px 0 8px',display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t3,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{lang==='th'?'คลิกเพื่อสมัคร':lang==='zh'?'点击申请':'Click to apply'}:</div>
+            {m.fights.map(f=>{const applied=myApps.some(a=>a.fightId===f.ftId);return(<div key={f.ftId} style={{padding:'8px 12px',borderRadius:8,border:`1px solid ${applied?C.green+'60':C.gold+'40'}`,background:applied?C.green+'08':C.gold+'06',cursor:applied?'default':'pointer'}} onClick={()=>!applied&&applyFromChat(f.ftId)}>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{f.label}</div>
+              <div style={{fontSize:12,color:C.t2}}>{f.weight} · {f.fmt}</div>
+              <div style={{fontSize:12,color:C.t2}}>{sn(f.stadium)} — {f.date}</div>
+              {applied?<div style={{fontSize:11,color:C.green,fontWeight:700,marginTop:2}}>✓ {lang==='th'?'สมัครแล้ว':lang==='zh'?'已申请':'Applied'}</div>:<div style={{fontSize:11,color:C.gold,fontWeight:600,marginTop:2}}>{lang==='th'?'แตะเพื่อสมัคร':lang==='zh'?'点击申请':'Tap to apply'}</div>}
+            </div>)})}
+          </div>)}
+        </div>))}
         {chatLoading&&(<div className="ai-msg ai"><div className="ai-thinking"><span/><span/><span/></div></div>)}
         <div ref={chatEndRef}/>
       </div>
