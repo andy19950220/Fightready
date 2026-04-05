@@ -379,17 +379,21 @@ function App(){
       const sysPompt={role:'system',content:getSystemPrompt()};
       const history=[sysPompt,...chatMsgs,userMsg];
       const reply=await askAI(null,history);
-      // Extract fight IDs and fighter IDs from AI response
+      // Extract fight IDs, fighter IDs, and event IDs from AI response
       const fightIdRegex=/\[(e\d+-fc\d+)\]/g;
       const fighterIdRegex=/\[(f\d+)\]/g;
+      const eventIdRegex=/\[(e\d+)\](?!-)/g;
       const mentionedFightIds=[...reply.matchAll(fightIdRegex)].map(m=>m[1]);
       const mentionedFighterIds=[...reply.matchAll(fighterIdRegex)].map(m=>m[1]);
+      const mentionedEventIds=[...new Set([...reply.matchAll(eventIdRegex)].map(m=>m[1]))];
       const matchedFights=getAvailableFights().filter(f=>mentionedFightIds.includes(f.ftId));
       const matchedFighters=fighters.filter(f=>mentionedFighterIds.includes(f.id));
+      const matchedEvents=events.filter(e=>mentionedEventIds.includes(e.id));
       setChatMsgs(prev=>[...prev,{
         role:'assistant',content:reply,
         fights:matchedFights.length>0?matchedFights:undefined,
-        fighters:matchedFighters.length>0?matchedFighters:undefined
+        fighters:matchedFighters.length>0?matchedFighters:undefined,
+        events:matchedEvents.length>0?matchedEvents:undefined
       }]);
     }catch(e){
       console.error('Chat error:',e);
@@ -434,16 +438,20 @@ function App(){
     })));
   };
 
-  // Apply to fight from chat
+  // Apply to fight from chat — now opens confirmation modal
   const applyFromChat=(ftId)=>{
     const alreadyApplied=myApps.some(a=>a.fightId===ftId);
-    if(alreadyApplied){setChatMsgs(prev=>[...prev,{role:'assistant',content:lang==='th'?'คุณสมัครรายการนี้แล้ว':'You already applied to this fight.'}]);return;}
-    setMyApps(p=>[...p,{fightId:ftId,status:'submitted'}]);
-    const info=fightInfo(ftId);
-    const msg=lang==='th'?`✅ สมัครสำเร็จ! ${info?.label} ที่ ${sn(info?.stadium)} (${info?.date})`
-      :lang==='zh'?`✅ 申请成功！${info?.label} 在 ${sn(info?.stadium)} (${info?.date})`
-      :`✅ Applied! ${info?.label} at ${sn(info?.stadium)} (${info?.date})`;
-    setChatMsgs(prev=>[...prev,{role:'assistant',content:msg}]);
+    if(alreadyApplied){flash(lang==='th'?'คุณสมัครรายการนี้แล้ว':lang==='zh'?'你已经申请了这场比赛':'You already applied to this fight','warn');return;}
+    // Find the fight and event objects to open the apply modal
+    for(const ev of events){const ft=ev.fights.find(f=>f.id===ftId);if(ft){setApplyWithLock({ft,ev});return;}}
+  };
+  // Navigate from chat to event browse page
+  const navigateToEvent=(ev)=>{
+    const stad=STADIUMS.find(s=>s.en===ev.stadium);
+    if(stad){setBrowseRegion(stad.region);setBrowseStadium(ev.stadium);setBrowseEvent(ev);}
+    if(role!=='fighter'){setRole('fighter');}
+    setFighterTab('browse');
+    setChatOpen(false);
   };
   const suggestMatchup=async(ft)=>{
     const wl=fighters.filter(f=>f.status==="approved"&&f.applied.includes(ft.id)&&inWR(f.weight,ft.w)).sort((a,b)=>b.att-a.att);
@@ -671,6 +679,16 @@ function App(){
           </div>)}
         </div>)}
         {chatMsgs.map((m,i)=>(<div key={i}><div className={`ai-msg ${m.role==='user'?'user':'ai'}`}>{m.content}</div>
+          {m.events&&m.events.length>0&&(<div style={{padding:'4px 0 8px',display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.t3,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{lang==='th'?'อีเวนท์ในระบบ':lang==='zh'?'系统中的赛事':'Events in system'}:</div>
+            {m.events.map(ev=>(<div key={ev.id} style={{padding:'8px 12px',borderRadius:8,border:`1px solid ${C.navy}20`,background:C.navy+'06',cursor:'pointer'}} onClick={()=>navigateToEvent(ev)}>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{ev.name}</div>
+              <div style={{fontSize:12,color:C.t2}}>{ev.promotion} · {sn(ev.stadium)}</div>
+              <div style={{fontSize:12,color:C.t2}}>{ev.date} · {ev.fights.length} {lang==='th'?'คู่ชก':lang==='zh'?'场比赛':'fight cards'}</div>
+              <div style={{display:'flex',gap:4,marginTop:4}}><span style={{fontSize:10,fontWeight:700,color:C.gold,background:C.goldBg||C.gold+'10',padding:'2px 6px',borderRadius:3}}>{ev.type}</span><span style={{fontSize:10,fontWeight:700,color:C.t3,background:C.t3+'10',padding:'2px 6px',borderRadius:3}}>{ev.fights.filter(ft=>ft.conf.length<2).length} {lang==='th'?'ช่องว่าง':lang==='zh'?'空位':'open'}</span></div>
+              <div style={{fontSize:11,color:C.gold,fontWeight:600,marginTop:4}}>{lang==='th'?'แตะดูรายการชก':lang==='zh'?'点击查看比赛':'Tap to view fights'}</div>
+            </div>))}
+          </div>)}
           {m.fighters&&m.fighters.length>0&&(<div style={{padding:'4px 0 8px',display:'flex',flexDirection:'column',gap:4}}>
             <div style={{fontSize:11,fontWeight:700,color:C.t3,textTransform:'uppercase',letterSpacing:1,marginBottom:2}}>{lang==='th'?'นักมวยในระบบ':lang==='zh'?'系统中的拳手':'Fighters in system'}:</div>
             {m.fighters.map(f=>{const fi=fIdx(f.id);return(<div key={f.id} style={{padding:'8px 12px',borderRadius:8,border:`1px solid ${C.navy}20`,background:C.navy+'06',cursor:'pointer'}} onClick={()=>setProfileWithLock(f)}>
