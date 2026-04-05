@@ -473,6 +473,8 @@ function App(){
   const[showLangMenu,setShowLangMenu]=useState(false);
   const cycleLang=()=>{const ls=Object.keys(LANGS);const i=(ls.indexOf(lang)+1)%ls.length;setLang(ls[i]);};
 
+  const IconHome=({c})=>(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
+
   const Nav=()=>(<>
     <nav className="top-nav" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 20px",background:C.card,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100}}>
       <div style={{cursor:"pointer"}} onClick={()=>{setRole("landing");resetNav();setStadiumLogin(null);setStadiumRegion(null);}}><Logo h={28}/></div>
@@ -482,10 +484,13 @@ function App(){
         {[["fighter",t("fighter")],["gym",t("gym")],["stadium",t("stadium")]].map(([r,l])=>(<button key={r} onClick={()=>{setRole(r);resetNav();if(r!=="stadium"){setStadiumLogin(null);setStadiumRegion(null);}}} style={tabSt(role===r)}>{l}</button>))}
       </div>
     </nav>
-    <div className="bottom-nav">
-      {[["fighter",t("fighter"),IconFighter],["gym",t("gym"),IconGym],["stadium",t("stadium"),IconStadium]].map(([r,l,Icon])=>(<button key={r} className={role===r?"bnav-active":""} onClick={()=>{setRole(r);resetNav();if(r!=="stadium"){setStadiumLogin(null);setStadiumRegion(null);}}}><Icon c={role===r?C.navy:C.t3}/><span>{l}</span></button>))}
+    {role!=="landing"&&(<div className="bottom-nav">
+      <button onClick={()=>{setRole("landing");resetNav();setStadiumLogin(null);setStadiumRegion(null);}}><IconHome c={C.t3}/><span>{lang==='th'?'หน้าแรก':lang==='zh'?'首页':'Home'}</span></button>
+      {role==="fighter"&&<button className="bnav-active"><IconFighter c={C.navy}/><span>{t("fighter")}</span></button>}
+      {role==="gym"&&<button className="bnav-active"><IconGym c={C.navy}/><span>{t("gym")}</span></button>}
+      {role==="stadium"&&<button className="bnav-active"><IconStadium c={C.navy}/><span>{t("stadium")}</span></button>}
       <button onClick={cycleLang}><IconLang c={C.t3}/><span>{LANGS[lang]}</span></button>
-    </div>
+    </div>)}
   </>);
 
   const Toast=()=>notif?<div style={{position:"fixed",top:14,right:14,padding:"10px 20px",borderRadius:4,zIndex:9999,fontSize:13,fontWeight:600,background:notif.t==="ok"?C.green:notif.t==="warn"?C.gold:C.red,color:"#fff"}}>{notif.m}</div>:null;
