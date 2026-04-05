@@ -564,7 +564,7 @@ function App(){
   };
 
   // ── Chat Panel Component ────────────────────────────────────
-  const ChatPanel=()=>(<>
+  const chatPanelJSX=(<>
     <button className="ai-fab" onClick={()=>setChatOpen(p=>!p)} title="RingCall AI Assistant">
       {chatOpen?'✕':'🤖'}
     </button>
@@ -598,7 +598,7 @@ function App(){
   </>);
 
   if(role==="landing") return <LandingView/>;
-  return(<div style={{minHeight:"100vh",background:C.bg}}><Nav/><Toast/><ProfileModal/><ChatPanel/><div style={{padding:20,maxWidth:1200,margin:"0 auto"}} className="main">{role==="fighter"&&<FighterView/>}{role==="gym"&&<GymView/>}{role==="stadium"&&<StadiumView/>}</div></div>);
+  return(<div style={{minHeight:"100vh",background:C.bg}}><Nav/><Toast/><ProfileModal/>{chatPanelJSX}<div style={{padding:20,maxWidth:1200,margin:"0 auto"}} className="main">{role==="fighter"&&<FighterView/>}{role==="gym"&&<GymView/>}{role==="stadium"&&<StadiumView/>}</div></div>);
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
