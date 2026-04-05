@@ -315,6 +315,7 @@ function App(){
   const[chatMsgs,setChatMsgs]=useState([]);
   const[chatInput,setChatInput]=useState("");
   const[chatLoading,setChatLoading]=useState(false);
+  const[chatRole,setChatRole]=useState(null);
   const chatEndRef=React.useRef(null);
   const chatScrollToBottom=()=>{setTimeout(()=>{chatEndRef.current?.scrollIntoView({behavior:'smooth'});},100);};
 
@@ -352,7 +353,7 @@ function App(){
   const getSystemPrompt=()=>{
     const fighterSummary=fighters.slice(0,25).map(f=>`${f.name}: ${f.style}, ${f.stance}, ${f.wins}W-${f.losses}L-${f.kos}KO, ${f.weight}, Age ${f.age}, Att ${f.att}%, Gym ${f.gym}, ${f.exp}, ${f.status}`).join('\n');
     const eventSummary=events.map(e=>`${e.name} (${e.date}) at ${e.stadium} — ${e.fights.length} cards, ${e.fights.reduce((a,ft)=>a+ft.conf.length,0)}/${e.fights.length*2} confirmed`).join('\n');
-    let ctx=`You are RingCall AI, an expert Muay Thai fight management assistant. You help with matchmaking, fighter analysis, event planning, and anything related to Muay Thai stadiums in Thailand.\n\nCurrent user role: ${role==='landing'?'Not logged in':role}\n\n`;
+    let ctx=`You are RingCall AI, an expert Muay Thai fight management assistant. You help with matchmaking, fighter analysis, event planning, and anything related to Muay Thai stadiums in Thailand.\n\nCurrent user role: ${chatRole||'Not selected'}\nUser language: ${lang==='th'?'Thai':lang==='zh'?'Chinese':'English'}\nIMPORTANT: Always respond in ${lang==='th'?'Thai':lang==='zh'?'Chinese':'English'}.\n\n`;
     if(role==='stadium'&&stadiumLogin) ctx+=`Stadium: ${stadiumLogin}\n`;
     if(selEvent) ctx+=`Viewing event: ${selEvent.name} (${selEvent.date})\n`;
     if(selFight) ctx+=`Viewing fight card: ${selFight.label} — ${selFight.w}\n`;
@@ -382,14 +383,49 @@ function App(){
     chatScrollToBottom();
   };
 
-  // Quick suggestion chips based on context
+  // Quick suggestion chips based on context — translated
   const getChatSuggestions=()=>{
-    if(chatMsgs.length>0)return[];
-    if(role==='stadium'&&selFight)return['Suggest best matchup for this card','Compare the eligible fighters','What makes a good main event?'];
-    if(role==='stadium')return['Which events need more fighters?','Suggest tonight\'s fight card order','How to attract more top fighters?'];
-    if(role==='fighter')return['What weight classes are most active?','Tips for getting on a Rajadamnern card','Best stadiums for foreign fighters?'];
-    if(role==='gym')return['How to improve my gym\'s attendance rating?','Which fighters should I submit this week?','What do stadiums look for in fighters?'];
-    return['How does RingCall work?','What stadiums are in Bangkok?','Explain Muay Thai weight classes'];
+    if(!chatRole||chatMsgs.length>0)return[];
+    const S={
+      stadium_fight:{en:'Suggest best matchup for this card',th:'แนะนำคู่ชกที่ดีที่สุดสำหรับรายการนี้',zh:'推荐最佳配对'},
+      stadium_compare:{en:'Compare the eligible fighters',th:'เปรียบเทียบนักมวยที่ผ่านเกณฑ์',zh:'比较符合条件的拳手'},
+      stadium_main:{en:'What makes a good main event?',th:'อะไรทำให้คู่เอกน่าสนใจ?',zh:'什么是好的主赛？'},
+      stadium_need:{en:'Which events need more fighters?',th:'รายการไหนต้องการนักมวยเพิ่ม?',zh:'哪些赛事需要更多拳手？'},
+      stadium_order:{en:"Suggest tonight's fight card order",th:'แนะนำลำดับรายการชกคืนนี้',zh:'建议今晚的比赛顺序'},
+      stadium_attract:{en:'How to attract more top fighters?',th:'ดึงดูดนักมวยระดับท็อปอย่างไร?',zh:'如何吸引更多顶级拳手？'},
+      fighter_weight:{en:'What weight classes are most active?',th:'รุ่นน้ำหนักไหนมีรายการมากที่สุด?',zh:'哪些级别最活跃？'},
+      fighter_raja:{en:'Tips for getting on a Rajadamnern card',th:'เคล็ดลับขึ้นชกราชดำเนิน',zh:'登上拉差丹能赛卡的技巧'},
+      fighter_foreign:{en:'Best stadiums for foreign fighters?',th:'สนามไหนดีที่สุดสำหรับนักมวยต่างชาติ?',zh:'最适合外国拳手的拳场？'},
+      gym_att:{en:"How to improve my gym's attendance rating?",th:'ปรับปรุงอัตราการเข้าร่วมของค่ายอย่างไร?',zh:'如何提高拳馆出勤率？'},
+      gym_submit:{en:'Which fighters should I submit this week?',th:'ควรส่งนักมวยคนไหนในสัปดาห์นี้?',zh:'本周应该提交哪些拳手？'},
+      gym_look:{en:'What do stadiums look for in fighters?',th:'สนามมองหาอะไรในนักมวย?',zh:'拳场在拳手身上看重什么？'},
+    };
+    const ts=k=>S[k]?.[lang]||S[k]?.en||k;
+    if(chatRole==='stadium'&&selFight)return[ts('stadium_fight'),ts('stadium_compare'),ts('stadium_main')];
+    if(chatRole==='stadium')return[ts('stadium_need'),ts('stadium_order'),ts('stadium_attract')];
+    if(chatRole==='fighter')return[ts('fighter_weight'),ts('fighter_raja'),ts('fighter_foreign')];
+    if(chatRole==='gym')return[ts('gym_att'),ts('gym_submit'),ts('gym_look')];
+    return[];
+  };
+
+  // Get available fights for fighter to browse in chat
+  const getAvailableFights=()=>{
+    return events.flatMap(ev=>ev.fights.filter(ft=>ft.conf.length<2).map(ft=>({
+      ftId:ft.id,evId:ev.id,label:ft.label+(ft.sub?' — '+ft.sub:''),
+      weight:ft.w,fmt:ft.fmt,event:ev.name,stadium:ev.stadium,date:ev.date,promotion:ev.promotion
+    })));
+  };
+
+  // Apply to fight from chat
+  const applyFromChat=(ftId)=>{
+    const alreadyApplied=myApps.some(a=>a.fightId===ftId);
+    if(alreadyApplied){setChatMsgs(prev=>[...prev,{role:'assistant',content:lang==='th'?'คุณสมัครรายการนี้แล้ว':'You already applied to this fight.'}]);return;}
+    setMyApps(p=>[...p,{fightId:ftId,status:'submitted'}]);
+    const info=fightInfo(ftId);
+    const msg=lang==='th'?`✅ สมัครสำเร็จ! ${info?.label} ที่ ${sn(info?.stadium)} (${info?.date})`
+      :lang==='zh'?`✅ 申请成功！${info?.label} 在 ${sn(info?.stadium)} (${info?.date})`
+      :`✅ Applied! ${info?.label} at ${sn(info?.stadium)} (${info?.date})`;
+    setChatMsgs(prev=>[...prev,{role:'assistant',content:msg}]);
   };
   const suggestMatchup=async(ft)=>{
     const wl=fighters.filter(f=>f.status==="approved"&&f.applied.includes(ft.id)&&inWR(f.weight,ft.w)).sort((a,b)=>b.att-a.att);
@@ -575,28 +611,63 @@ function App(){
       <div className="ai-chat-header">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <MiniLogo s={28}/>
-          <div><div style={{fontSize:15,fontWeight:700}}>RingCall AI</div><div style={{fontSize:11,opacity:.7}}>Muay Thai Assistant</div></div>
+          <div><div style={{fontSize:15,fontWeight:700}}>RingCall AI</div><div style={{fontSize:11,opacity:.7}}>{chatRole?({fighter:{en:'Fighter Mode',th:'โหมดนักมวย',zh:'拳手模式'},gym:{en:'Gym Mode',th:'โหมดค่ายมวย',zh:'拳馆模式'},stadium:{en:'Stadium Mode',th:'โหมดสนาม',zh:'拳场模式'}}[chatRole]?.[lang]||'Assistant'):'Muay Thai Assistant'}</div></div>
         </div>
         <div style={{display:'flex',gap:6}}>
-          {chatMsgs.length>0&&<button style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:6,padding:'4px 10px',fontSize:11,minHeight:0,fontWeight:600}} onClick={()=>setChatMsgs([])}>Clear</button>}
+          {(chatMsgs.length>0||chatRole)&&<button style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:6,padding:'4px 10px',fontSize:11,minHeight:0,fontWeight:600}} onClick={()=>{setChatMsgs([]);setChatRole(null);}}>Clear</button>}
           <button style={{background:'none',border:'none',color:'#fff',fontSize:20,minHeight:0,padding:4,cursor:'pointer'}} onClick={()=>setChatOpen(false)}>✕</button>
         </div>
       </div>
       <div className="ai-chat-messages">
-        {chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'30px 20px',color:C.t3}}>
+        {!chatRole&&chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'24px 20px'}}>
           <div style={{marginBottom:12,display:'flex',justifyContent:'center'}}><MiniLogoDark s={48}/></div>
-          <div style={{fontSize:16,fontWeight:700,color:C.navy,marginBottom:4}}>Ask me anything</div>
-          <div style={{fontSize:13,lineHeight:1.5}}>Fighter analysis, matchmaking, event planning, Muay Thai rules — I know it all.</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'คุณคือใคร?':lang==='zh'?'你是谁？':'Who are you?'}</div>
+          <div style={{fontSize:13,color:C.t3,marginBottom:16,lineHeight:1.5}}>{lang==='th'?'เลือกบทบาทเพื่อเริ่มต้น':lang==='zh'?'选择角色开始':'Select your role to get started'}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {[['fighter',t('imFighter'),'🥊'],['gym',t('imGym'),'🏋️'],['stadium',t('imStadium'),'🏟️']].map(([r,label,icon])=>(
+              <button key={r} onClick={()=>setChatRole(r)} style={{padding:'14px 16px',borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
+                <span style={{fontSize:24}}>{icon}</span>
+                <span style={{fontSize:15,fontWeight:700,color:C.navy}}>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>)}
+        {chatRole&&chatMsgs.length===0&&(<div style={{textAlign:'center',padding:'20px 16px',color:C.t3}}>
+          <div style={{marginBottom:8,display:'flex',justifyContent:'center'}}><MiniLogoDark s={40}/></div>
+          {chatRole==='fighter'&&(<div>
+            <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'รายการชกว่าง':lang==='zh'?'可申请的比赛':'Available Fights'}</div>
+            <div style={{fontSize:12,color:C.t3,marginBottom:12}}>{lang==='th'?'คลิกเพื่อสมัคร หรือพิมพ์ถามได้':lang==='zh'?'点击申请或输入提问':'Click to apply, or type a question'}</div>
+            <div style={{maxHeight:280,overflowY:'auto',textAlign:'left'}}>
+              {getAvailableFights().map(f=>{
+                const applied=myApps.some(a=>a.fightId===f.ftId);
+                return(<div key={f.ftId} style={{padding:'10px 12px',marginBottom:6,borderRadius:8,border:`1px solid ${applied?C.green+'60':C.border}`,background:applied?C.green+'08':C.card,cursor:applied?'default':'pointer'}} onClick={()=>!applied&&applyFromChat(f.ftId)}>
+                  <div style={{fontSize:13,fontWeight:700,color:C.navy}}>{f.label}</div>
+                  <div style={{fontSize:12,color:C.t2}}>{f.weight} · {f.fmt}</div>
+                  <div style={{fontSize:12,color:C.t2}}>{sn(f.stadium)} — {f.date}</div>
+                  <div style={{fontSize:11,color:C.t3}}>{f.promotion}</div>
+                  {applied&&<div style={{fontSize:11,color:C.green,fontWeight:700,marginTop:4}}>✓ {lang==='th'?'สมัครแล้ว':lang==='zh'?'已申请':'Applied'}</div>}
+                </div>);
+              })}
+            </div>
+          </div>)}
+          {chatRole==='gym'&&(<div>
+            <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'ถามเกี่ยวกับนักมวยของคุณ':lang==='zh'?'询问关于你的拳手':'Ask about your fighters'}</div>
+            <div style={{fontSize:12,color:C.t3}}>{lang==='th'?'ฉันเข้าถึงข้อมูลนักมวย ค่ายมวย และรายการแข่งขันทั้งหมดได้':lang==='zh'?'我可以访问所有拳手、拳馆和赛事数据':'I have access to all fighter, gym, and event data'}</div>
+          </div>)}
+          {chatRole==='stadium'&&(<div>
+            <div style={{fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{lang==='th'?'จัดการรายการแข่งขันของคุณ':lang==='zh'?'管理你的赛事':'Manage your events'}</div>
+            <div style={{fontSize:12,color:C.t3}}>{lang==='th'?'ฉันช่วยจับคู่นักมวย วิเคราะห์ และจัดรายการชกได้':lang==='zh'?'我可以帮助配对拳手、分析和安排比赛':'I can help with matchmaking, analysis, and fight card planning'}</div>
+          </div>)}
         </div>)}
         {chatMsgs.map((m,i)=>(<div key={i} className={`ai-msg ${m.role==='user'?'user':'ai'}`}>{m.content}</div>))}
         {chatLoading&&(<div className="ai-msg ai"><div className="ai-thinking"><span/><span/><span/></div></div>)}
         <div ref={chatEndRef}/>
       </div>
       {getChatSuggestions().length>0&&(<div className="ai-suggestions">{getChatSuggestions().map((s,i)=>(<button key={i} onClick={()=>sendChatMsg(s)}>{s}</button>))}</div>)}
-      <div className="ai-chat-input">
-        <input placeholder="Ask RingCall AI..." value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMsg();}}} disabled={chatLoading}/>
+      {chatRole&&(<div className="ai-chat-input">
+        <input placeholder={lang==='th'?'ถาม RingCall AI...':lang==='zh'?'问 RingCall AI...':'Ask RingCall AI...'} value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMsg();}}} disabled={chatLoading}/>
         <button onClick={()=>sendChatMsg()} disabled={chatLoading||!chatInput.trim()}>➤</button>
-      </div>
+      </div>)}
     </div>)}
   </>);
 
